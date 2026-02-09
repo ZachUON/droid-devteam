@@ -55,10 +55,17 @@ function Send-ToPane {
         [Parameter(Mandatory)][string]$PaneId,
         [Parameter(Mandatory)][string]$Text
     )
-    # Two-step approach: send text, then send Enter separately
-    wezterm cli send-text --pane-id $PaneId $Text 2>&1 | Out-Null
-    Start-Sleep -Milliseconds 100
-    wezterm cli send-text --pane-id $PaneId --no-paste "`r`n" 2>&1 | Out-Null
+    # Two-step approach: pipe text via stdin, then send Enter separately
+    # Piping via stdin is more reliable than passing as CLI argument for long/complex text
+    $result = $Text | wezterm cli send-text --pane-id $PaneId --no-paste 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-TeamLog "send-text failed for pane ${PaneId}: $result" -Level Warning
+    }
+    Start-Sleep -Milliseconds 200
+    $result2 = "`r`n" | wezterm cli send-text --pane-id $PaneId --no-paste 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-TeamLog "send-text Enter failed for pane ${PaneId}: $result2" -Level Warning
+    }
 }
 
 # ════════════════════════════════════════════
@@ -564,9 +571,9 @@ function Invoke-StartTeam {
     $baseCtx = "You are part of an AI dev team in $ProjectDir. Session files: $sessionDirForPrompt/. Read scratchpad.md and your inbox FIRST. Pane IDs are in session.json - use two-step send-text to communicate."
 
     $architectPrompt = if ($Task) {
-        "$baseCtx You are the ARCHITECT (Team Lead). Task: $Task. Read your droid instructions carefully. WORKFLOW: 1-Assess research needs and spawn researchers with 'devteam add-agent research'. 2-Assign each researcher a specific topic via their inbox, notify them. 3-WAIT for findings. 4-Based on findings spawn experts and builders with 'devteam add-agent expert DOMAIN' and 'devteam add-agent builder'. 5-Assign tasks, coordinate. 6-Send to Validator. 7-Build-validate loop until Validator passes. 8-YOU review final result. 9-If anything missing, send back to builders. 10-Only report done when task is fully complete. Agents report back to YOU - do not stop until everything is delivered."
+        "$baseCtx You are the ARCHITECT (Team Lead). Task: $Task. Read your droid instructions carefully. CRITICAL COMMANDS - use 'devteam add-agent TYPE' to spawn agents and 'devteam msg AGENT-NAME message' to assign tasks. devteam msg writes to their inbox AND notifies their pane - ALWAYS use it instead of manually writing files. WORKFLOW: 1-Assess research needs, spawn researchers with 'devteam add-agent research'. 2-Assign each researcher a topic with 'devteam msg research-1 topic'. 3-WAIT for research findings. 4-Based on findings spawn experts and builders. 5-Assign tasks with 'devteam msg builder-1 task'. 6-Send to Validator with 'devteam msg validator test X'. 7-Build-validate loop until Validator passes. 8-YOU review final result. 9-If anything missing, send back to builders. 10-Only report done when fully complete."
     } else {
-        "$baseCtx You are the ARCHITECT (Team Lead). No task yet. Read scratchpad and inbox, announce readiness. When you get a task, FIRST assess research needs, spawn researchers, wait for findings, THEN spawn experts and builders. Never stop until the full task is delivered."
+        "$baseCtx You are the ARCHITECT (Team Lead). No task yet. Read scratchpad and inbox, announce readiness. Use 'devteam msg AGENT message' to assign tasks and 'devteam add-agent TYPE' to spawn agents. When you get a task, FIRST assess research needs, spawn researchers, wait for findings, THEN spawn experts and builders. Never stop until the full task is delivered."
     }
 
     $validatorPrompt = "$baseCtx You are the VALIDATOR. When you get work to test: test thoroughly, write findings to scratchpad. If PASS - notify Architect. If FAIL - write issues to the Builder inbox AND notify both Builder and Architect. The build-validate loop continues until you pass. Read inbox at $sessionDirForPrompt/inbox-validator.md now."

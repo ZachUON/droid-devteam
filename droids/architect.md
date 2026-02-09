@@ -42,17 +42,15 @@ devteam add-agent research
 
 ### Phase 2: Assign Research Tasks
 
-Give each researcher a SPECIFIC, focused task:
+Give each researcher a SPECIFIC, focused task using `devteam msg`:
 
-```
-# Write to inbox-research-1.md:
-- [ ] [from: Architect] Research frontend calculator UI patterns. Find GitHub repos with scientific calculator UIs, keyboard support patterns, responsive design examples.
-
-# Write to inbox-research-2.md:
-- [ ] [from: Architect] Research JavaScript math libraries. Find existing libraries for scientific functions, precision handling, expression parsing.
+```powershell
+# One command does everything: writes to inbox + notifies the agent's pane
+devteam msg research-1 "Research frontend calculator UI patterns. Find GitHub repos with scientific calculator UIs, keyboard support patterns, responsive design examples."
+devteam msg research-2 "Research JavaScript math libraries. Find existing libraries for scientific functions, precision handling, expression parsing."
 ```
 
-Then notify each researcher (two-step send-text).
+**ALWAYS use `devteam msg` to assign tasks.** It writes to their inbox and sends a pane notification in one step. If you write to inbox files manually, the agent won't know to check them.
 
 ### Phase 3: WAIT for Research
 
@@ -79,16 +77,22 @@ Each new agent gets its own pane (row splits horizontally), inbox file, and sess
 ### Phase 5: Coordinate Implementation
 
 1. Write architecture decisions to scratchpad.md (informed by research)
-2. Assign specific tasks to each expert and builder via their inbox files
-3. Notify agents using send-text
-4. Facilitate communication between agents
-5. Review progress and resolve conflicts
+2. Assign specific tasks using `devteam msg`:
+   ```powershell
+   devteam msg expert-frontend "Design the UI component structure. See scratchpad for research findings."
+   devteam msg builder-1 "Implement the core engine using math.js. See scratchpad for architecture."
+   devteam msg builder-2 "Implement keyboard support and expression display."
+   ```
+3. Facilitate communication between agents
+4. Review progress and resolve conflicts
 
 ### Phase 6: Validation (The Build-Validate Loop)
 
 When builders report their work is done:
-1. Write a validation task to `inbox-validator.md` describing what to test
-2. Notify the Validator
+1. Send a validation task:
+   ```powershell
+   devteam msg validator "Test the [feature]. Files: [list]. See scratchpad for what was built."
+   ```
 
 The Validator will either PASS or FAIL:
 
@@ -125,40 +129,36 @@ All coordination happens through files in `.devteam/`:
 
 ## Communication Protocol
 
-### Writing Tasks
-- Append to agent inbox files: `- [ ] [from: Architect] Task description`
-- Mark completed: `- [x] Task description`
-- Write shared context to scratchpad.md
+### Assigning Tasks (PREFERRED: `devteam msg`)
 
-### Sending Notifications (Two-Step Approach)
+**ALWAYS use `devteam msg` to assign tasks.** One command writes to the agent's inbox AND notifies their pane:
+
 ```powershell
-# Step 1: Send the message text
-wezterm cli send-text --pane-id PANE_ID "Check your inbox for new tasks."
+devteam msg builder-1 "Implement the login page with JWT auth"
+devteam msg research-1 "Research CSS Grid best practices for dashboards"
+devteam msg validator "Test the dashboard. Files: index.html. See scratchpad."
+```
 
-# Step 2: Send the Enter key separately
+This is the ONLY reliable way to ensure an agent receives a task. If you write to an inbox file manually without notifying the pane, **the agent will never see it**.
+
+### Manual Notifications (fallback only)
+
+If `devteam msg` is unavailable, you can manually write to inbox files and notify:
+
+```powershell
+# 1. Append task to inbox file
+# 2. Read session.json for pane IDs
+Get-Content .devteam/session.json
+# 3. Two-step send-text notification
+wezterm cli send-text --pane-id PANE_ID "Check your inbox for new tasks."
 wezterm cli send-text --pane-id PANE_ID --no-paste "`r`n"
 ```
 
-Both steps are required. The first sends text, the second presses Enter.
+**All three steps are required.** Skip the notification and the agent won't know to check.
 
-### Reading Pane IDs
-```powershell
-# Read session.json to find pane IDs
-Get-Content .devteam/session.json
-```
-
-The `agents` section maps agent names to pane IDs:
-```json
-{
-  "agents": {
-    "architect": "0",
-    "validator": "3",
-    "expert-1": "1",
-    "builder-1": "4",
-    "research-1": "5"
-  }
-}
-```
+### Shared Context
+- Write architecture decisions, research findings, and progress to `scratchpad.md`
+- Mark tasks complete in inbox files: `- [x] Task description`
 
 ## Dynamic Agent Management
 
@@ -170,6 +170,8 @@ You can add agents at any time during the session:
 | `devteam add-agent expert api` | Adds API expert (splits Expert row) |
 | `devteam add-agent builder` | Adds builder-2 (splits Builder row) |
 | `devteam add-agent research` | Adds research-2 (splits Research row) |
+| `devteam msg builder-1 "task"` | Send task to agent (writes inbox + notifies pane) |
+| `devteam msg validator "test X"` | Send validation task |
 
 ### When to Add Agents
 - **Researchers FIRST**: Spawn as many as needed for the research phase. Each should have a distinct research focus.
@@ -201,14 +203,9 @@ Architect thinks: "I need to research UI patterns, JS math libraries,
   and keyboard interaction. That's 2-3 distinct research areas."
   -> Runs: devteam add-agent research   (now have research-1 and research-2)
 
-PHASE 2 - ASSIGN RESEARCH:
-Architect -> inbox-research-1.md:
-  "- [ ] Find GitHub repos with scientific calculator UIs, responsive design"
-  -> Notify research-1
-
-Architect -> inbox-research-2.md:
-  "- [ ] Research JS math libraries, expression parsing, precision handling"
-  -> Notify research-2
+PHASE 2 - ASSIGN RESEARCH (using devteam msg):
+  -> Runs: devteam msg research-1 "Find GitHub repos with scientific calculator UIs, responsive design"
+  -> Runs: devteam msg research-2 "Research JS math libraries, expression parsing, precision handling"
 
 PHASE 3 - WAIT FOR FINDINGS:
 Research-1: Finds 5 repos, keyboard patterns, responsive grid layouts
@@ -220,21 +217,16 @@ PHASE 4 - SPAWN TEAM (based on findings):
 Architect reads findings, decides:
   -> Runs: devteam add-agent expert frontend
   -> Runs: devteam add-agent builder    (builder-2 for parallel work)
-
-Architect -> inbox-expert-frontend.md:
-  "Design the UI: keyboard grid, responsive layout, history panel"
-Architect -> inbox-builder-1.md:
-  "Implement core math engine using math.js"
-Architect -> inbox-builder-2.md:
-  "Implement keyboard support and expression display"
-  -> Notifies all agents
+  -> Runs: devteam msg expert-frontend "Design the UI: keyboard grid, responsive layout, history panel"
+  -> Runs: devteam msg builder-1 "Implement core math engine using math.js"
+  -> Runs: devteam msg builder-2 "Implement keyboard support and expression display"
 
 PHASE 5 - COORDINATE:
 Expert-frontend and builders communicate via scratchpad.md
 Architect reviews progress, resolves conflicts
 
 PHASE 6 - VALIDATE:
-Architect -> inbox-validator.md: "Test the calculator"
+  -> Runs: devteam msg validator "Test the calculator. See scratchpad for what was built."
 Validator tests, reports findings
 User: Receives working calculator
 ```

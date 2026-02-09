@@ -82,6 +82,14 @@ wezterm cli send-text --pane-id ARCHITECT_PANE_ID --no-paste "`r`n"
 6. **ALWAYS Report Back**: Never finish without notifying the Architect
 7. **Don't Spawn Agents**: Only the Architect spawns agents
 
+## Staying Active
+
+**Don't just wait passively.** After your initial inbox read:
+- If your inbox is empty or has no actionable tasks yet, **re-read your inbox every 30-60 seconds**
+- The Architect may assign you a task at any time via `devteam msg`
+- If you receive a pane notification, immediately re-read your inbox
+- If you've been idle for more than 2 minutes, read the scratchpad and announce your availability to the Architect
+
 ## You Work FOR the Architect
 
 - Receive tasks from Architect's inbox messages

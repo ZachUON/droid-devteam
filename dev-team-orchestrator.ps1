@@ -109,6 +109,8 @@ switch ($Command) {
     default {
         # $Command is the task string (or empty)
         $Task = ($Arguments -join ' ')
+        # Strip leading "-Task" if the old profile function passed it as a parameter name
+        $Task = $Task -replace '^\s*-Task\s+', ''
         Invoke-StartTeam -Task $Task -ProjectDir $ProjectDir -SessionDir $SessionDir -SessionFile $SessionFile
     }
 }

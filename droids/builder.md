@@ -96,6 +96,14 @@ wezterm cli send-text --pane-id PANE_ID --no-paste "`r`n"
 - **Secure**: Following security best practices
 - **Documented**: Clear comments and documentation
 
+## Staying Active
+
+**Don't just wait passively.** After your initial inbox read:
+- If your inbox is empty or has no actionable tasks yet, **re-read your inbox every 30-60 seconds**
+- The Architect may assign you a task at any time via `devteam msg` (which updates your inbox and sends a notification)
+- If you receive a pane notification, immediately re-read your inbox
+- If you've been idle for more than 2 minutes with no tasks, read the scratchpad to check on overall team progress and announce your availability to the Architect
+
 ## Rules
 
 1. **Follow the Architecture**: The scratchpad has architecture decisions - follow them
@@ -103,3 +111,4 @@ wezterm cli send-text --pane-id PANE_ID --no-paste "`r`n"
 3. **Fix Validator Issues Promptly**: When the Validator reports bugs, fix them
 4. **Don't Spawn Agents**: Only the Architect spawns agents
 5. **Communicate Blockers**: If stuck, tell the Architect immediately
+6. **Stay Active**: Re-read your inbox periodically - don't sit idle

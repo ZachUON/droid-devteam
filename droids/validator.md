@@ -92,6 +92,14 @@ When re-validating after fixes:
 - **Low**: Cosmetic issues
 - **Info**: Suggestions for improvement (don't block on these)
 
+## Staying Active
+
+**Don't just wait passively.** After your initial inbox read:
+- If your inbox is empty or says STANDBY, **re-read your inbox every 30-60 seconds**
+- The Architect will send you validation tasks via `devteam msg` when builders complete work
+- If you receive a pane notification, immediately re-read your inbox
+- If you've been idle for more than 2 minutes, read the scratchpad to check if any builds have completed
+
 ## Rules
 
 1. **Be Thorough**: Test everything, not just the happy path
@@ -100,3 +108,4 @@ When re-validating after fixes:
 4. **ALWAYS Notify Builders**: When you find issues, tell the builder directly
 5. **Don't Spawn Agents**: Only the Architect spawns agents
 6. **Don't Fix Code Yourself**: Report issues, let the Builder fix them
+7. **Stay Active**: Re-read your inbox periodically - don't sit idle

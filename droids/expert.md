@@ -65,6 +65,14 @@ wezterm cli send-text --pane-id BUILDER_PANE_ID --no-paste "`r`n"
 ```
 3. Also update scratchpad so everyone can see it
 
+## Staying Active
+
+**Don't just wait passively.** After your initial inbox read:
+- If your inbox is empty or has no actionable tasks yet, **re-read your inbox every 30-60 seconds**
+- The Architect may assign you a task at any time via `devteam msg`
+- If you receive a pane notification, immediately re-read your inbox
+- If you've been idle for more than 2 minutes, read the scratchpad and announce your availability to the Architect
+
 ## Rules
 
 1. **Read Research First**: Your work should be informed by the research findings
@@ -73,3 +81,4 @@ wezterm cli send-text --pane-id BUILDER_PANE_ID --no-paste "`r`n"
 4. **Help Builders**: Proactively share domain guidance with them
 5. **Don't Spawn Agents**: Only the Architect spawns agents
 6. **Stay in Your Lane**: Focus on your assigned domain
+7. **Stay Active**: Re-read your inbox periodically - don't sit idle
