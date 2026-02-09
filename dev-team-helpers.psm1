@@ -295,6 +295,74 @@ function Show-TeamLayout {
 }
 
 # ════════════════════════════════════════════
+# Send Message to Agent
+# ════════════════════════════════════════════
+
+function Invoke-SendMessage {
+    param(
+        [Parameter(Mandatory)][string]$AgentName,
+        [Parameter(Mandatory)][string]$Message,
+        [string]$SessionDir,
+        [string]$SessionFile,
+        [string]$CallerName = "user"
+    )
+
+    if (-not (Test-Path $SessionFile)) {
+        Write-TeamLog "No active session. Run 'devteam' first." -Level Error
+        return
+    }
+
+    $session = Read-Session -SessionFile $SessionFile
+
+    # Find the pane ID for this agent
+    $paneId = $null
+    foreach ($prop in $session.agents.PSObject.Properties) {
+        if ($prop.Name -eq $AgentName) {
+            $paneId = $prop.Value
+            break
+        }
+    }
+
+    if (-not $paneId) {
+        Write-TeamLog "Agent '$AgentName' not found in session." -Level Error
+        Write-Host "  Active agents:" -ForegroundColor Gray
+        foreach ($prop in $session.agents.PSObject.Properties) {
+            Write-Host "    - $($prop.Name) (pane $($prop.Value))" -ForegroundColor Gray
+        }
+        return
+    }
+
+    # Append to agent's inbox
+    $inboxPath = Join-Path $SessionDir "inbox-$AgentName.md"
+    if (-not (Test-Path $inboxPath)) {
+        # Create inbox if it doesn't exist yet
+        $inbox = @"
+# Inbox: $AgentName
+## Pending Tasks
+
+## Completed
+"@
+        Set-Content -Path $inboxPath -Value $inbox -Encoding UTF8
+    }
+
+    $timestamp = Get-Date -Format "HH:mm:ss"
+    $entry = "- [ ] [$timestamp from $CallerName] $Message"
+
+    # Insert the task under "## Pending Tasks"
+    $content = Get-Content $inboxPath -Raw
+    $content = $content -replace '(## Pending Tasks\r?\n)', "`$1$entry`n"
+    Set-Content -Path $inboxPath -Value $content -Encoding UTF8
+
+    # Notify the agent's pane
+    $notification = "New task in your inbox from $CallerName. Read inbox-$AgentName.md now."
+    Send-ToPane -PaneId $paneId -Text $notification
+
+    Write-TeamLog "Message sent to $AgentName (pane $paneId)" -Level Success
+    Write-Host "  Inbox: $inboxPath" -ForegroundColor Gray
+    Write-Host "  Message: $Message" -ForegroundColor Gray
+}
+
+# ════════════════════════════════════════════
 # Add Agent (dynamic splitting)
 # ════════════════════════════════════════════
 
@@ -541,12 +609,14 @@ function Invoke-StartTeam {
     Write-Host "  You -> Architect -> spawn Researchers -> findings -> spawn Experts/Builders -> Validator" -ForegroundColor Gray
     Write-Host ""
     Write-Host "COMMANDS:" -ForegroundColor Yellow
-    Write-Host "  devteam add-agent expert [domain]  Add an expert" -ForegroundColor Gray
-    Write-Host "  devteam add-agent builder           Add a builder" -ForegroundColor Gray
-    Write-Host "  devteam add-agent research           Add a researcher" -ForegroundColor Gray
-    Write-Host "  devteam status                      Show team status" -ForegroundColor Gray
-    Write-Host "  devteam layout                      Show visual layout" -ForegroundColor Gray
-    Write-Host "  devteam stop                        Stop and archive session" -ForegroundColor Gray
+    Write-Host "  devteam add-agent expert [domain]    Add an expert" -ForegroundColor Gray
+    Write-Host "  devteam add-agent builder             Add a builder" -ForegroundColor Gray
+    Write-Host "  devteam add-agent research             Add a researcher" -ForegroundColor Gray
+    Write-Host "  devteam msg <agent> `"message`"        Send task to an agent" -ForegroundColor Gray
+    Write-Host "  devteam task `"message`"                Send task to Architect" -ForegroundColor Gray
+    Write-Host "  devteam status                        Show team status" -ForegroundColor Gray
+    Write-Host "  devteam layout                        Show visual layout" -ForegroundColor Gray
+    Write-Host "  devteam stop                          Stop and archive session" -ForegroundColor Gray
     Write-Host ""
 
     # Now start the Architect droid in the CURRENT pane (this replaces the orchestrator)
@@ -572,6 +642,7 @@ Export-ModuleMember -Function @(
     'Invoke-StopSession',
     'Show-TeamStatus',
     'Show-TeamLayout',
+    'Invoke-SendMessage',
     'Invoke-AddAgent',
     'Invoke-StartTeam'
 )

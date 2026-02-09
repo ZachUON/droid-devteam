@@ -24,6 +24,8 @@
       devteam add-agent expert frontend   Add domain expert
       devteam add-agent builder           Add builder
       devteam add-agent research          Add researcher
+      devteam msg builder-1 "do X"        Send message to agent
+      devteam task "new objective"         Send task to Architect
       devteam stop                        Kill session and archive
       devteam status                      Show team status
       devteam layout                      Show visual layout
@@ -52,6 +54,7 @@ if (Test-Path $HelperModule) {
 $Command = if ($Arguments.Count -gt 0) { $Arguments[0] } else { "" }
 $Arg1 = if ($Arguments.Count -gt 1) { $Arguments[1] } else { "" }
 $Arg2 = if ($Arguments.Count -gt 2) { $Arguments[2] } else { "" }
+$RestArgs = if ($Arguments.Count -gt 2) { ($Arguments[2..($Arguments.Count - 1)] -join ' ') } else { "" }
 
 # ── Resolve paths ──
 
@@ -76,6 +79,31 @@ switch ($Command) {
     }
     'add-agent' {
         Invoke-AddAgent -AgentType $Arg1 -Domain $Arg2 -SessionDir $SessionDir -SessionFile $SessionFile -ProjectDir $ProjectDir
+        exit 0
+    }
+    'msg' {
+        if (-not $Arg1) {
+            Write-Host "Usage: devteam msg <agent-name> <message>" -ForegroundColor Yellow
+            Write-Host "  Example: devteam msg builder-1 `"Implement the login page`"" -ForegroundColor Gray
+            exit 1
+        }
+        $msgBody = $RestArgs
+        if (-not $msgBody) {
+            Write-Host "Usage: devteam msg <agent-name> <message>" -ForegroundColor Yellow
+            exit 1
+        }
+        Invoke-SendMessage -AgentName $Arg1 -Message $msgBody -SessionDir $SessionDir -SessionFile $SessionFile -CallerName "user"
+        exit 0
+    }
+    'task' {
+        # Shorthand: devteam task "message" -> devteam msg architect "message"
+        $taskMsg = if ($Arguments.Count -gt 1) { ($Arguments[1..($Arguments.Count - 1)] -join ' ') } else { "" }
+        if (-not $taskMsg) {
+            Write-Host "Usage: devteam task <message>" -ForegroundColor Yellow
+            Write-Host "  Sends a task to the Architect. Shorthand for: devteam msg architect <message>" -ForegroundColor Gray
+            exit 1
+        }
+        Invoke-SendMessage -AgentName "architect" -Message $taskMsg -SessionDir $SessionDir -SessionFile $SessionFile -CallerName "user"
         exit 0
     }
     default {
