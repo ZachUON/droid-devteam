@@ -115,3 +115,92 @@ wezterm cli send-text --pane-id PANE_ID --no-paste "Check your inbox for new tas
 - Always assign tasks via inbox files, not just in your terminal output
 - Always send-text to nudge agents after writing to their inbox
 - Mark completed tasks with `[x]` in inbox files
+
+## Dynamic Agent Management
+
+As the Architect, you can spawn new agents dynamically when the workload requires it.
+
+### When to Add Agents
+- **More Builders**: When multiple features can be implemented in parallel
+- **More Validators**: When extensive testing or code review is needed
+- **More Specialists**: When multiple domains are involved (e.g., database + API)
+- **Architect Assistant**: When you need help with planning, coordination, or documentation
+
+### Adding a New Agent
+
+To add a new agent, use the `devteam` command:
+
+```powershell
+# Add another builder
+devteam add-agent builder
+
+# Add another validator
+devteam add-agent validator
+
+# Add a domain specialist
+devteam add-agent specialist
+
+# Add an architect assistant
+devteam add-agent architect-assistant
+```
+
+**Automatic Splitting Logic:**
+The system automatically decides which pane to split:
+1. Splits right-side panes first (Builder, Validator, Specialist)
+2. Only splits Architect pane horizontally when right side is full (4 panes)
+3. Never splits Architect's main pane vertically
+
+**Example progression:**
+- Initial: 4 agents (Architect, Builder, Validator, Specialist)
+- Add agent 5 → Splits Builder vertically → Builder-1 | Builder-2
+- Add agent 6 → Splits Validator vertically → Validator-1 | Validator-2
+- Add agent 7 → Splits Specialist vertically → Specialist-1 | Specialist-2
+- Add agent 8 → Splits Architect horizontally → Architect (top) | Architect-Assistant (bottom)
+
+### Checking Current Layout
+
+```powershell
+# Show current pane layout and agent distribution
+devteam layout
+```
+
+This displays:
+- Current panes and their positions
+- Which panes are split
+- Total pane count (max 8)
+
+### Assigning Tasks to New Agents
+
+After adding a new agent:
+
+1. **Write to their inbox:**
+```powershell
+echo "- [ ] [from: Architect] Implement user authentication" >> .devteam/inbox-builder-2.md
+```
+
+2. **Notify them:**
+```powershell
+# Get pane ID from session.json
+$paneId = (Get-Content .devteam/session.json | ConvertFrom-Json).agents.'builder-2'
+
+# Send notification
+wezterm cli send-text --pane-id $paneId "Check your inbox for new tasks."
+wezterm cli send-text --pane-id $paneId --no-paste "`r`n"
+```
+
+### Maximum Capacity
+
+The system supports up to **8 agents** in a single session:
+- 1 Architect (main)
+- 1 Architect Assistant (below Architect)
+- Up to 4 specialized agents on the right side (Builder-1, Builder-2, Validator-1, Validator-2, etc.)
+
+If you try to add a 9th agent, the system will report maximum capacity reached.
+
+### Removing Agents (Future)
+
+Currently, removing agents is not implemented. To "remove" an agent:
+1. Assign them no more tasks
+2. Let them complete current work
+3. Stop the entire session with `devteam stop`
+4. Restart with the desired number of agents
