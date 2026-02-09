@@ -1,5 +1,5 @@
-# Development Team Orchestrator v5 for WezTerm
-# Spawns coordinated agents with column-based layout + dynamic splitting
+# Development Team Orchestrator v6 for WezTerm
+# Spawns coordinated agents with research-first workflow + dynamic splitting
 # Session files are created in .devteam/ inside the current working directory.
 #
 # Usage:
@@ -10,20 +10,29 @@
 #   devteam layout              # Show visual pane layout
 #   devteam add-agent expert    # Add domain expert
 #   devteam add-agent builder   # Add builder for parallel work
+#   devteam add-agent research  # Add researcher
 #
-# Layout (column-based):
+# Layout (research-first):
 #   +------------------+------------------+
-#   |                  |      Expert      |
-#   |                  +------------------+
-#   |    Architect     |     Builder      |
-#   |                  +------------------+
-#   |                  |    Validator     |
+#   |    Architect     |      Expert      |
+#   |   (top-left)     +------------------+
+#   +------------------+     Builder      |
+#   |    Validator     +------------------+
+#   |   (bottom-left)  |     Research     |
 #   +------------------+------------------+
+#
+# Workflow:
+#   1. User → Architect with task
+#   2. Architect → Research (finds examples, best practices)
+#   3. Research → Architect (findings)
+#   4. Architect → spawns Experts/Builders based on research
+#   5. Team → Validator (final QA)
 #
 # Agent Types:
-#   - Architect: Team lead, NEVER splits
-#   - Expert: Domain knowledge (API, DB, frontend, etc.) - NEVER duplicate same type
-#   - Builder: Implementation - add when features can be done in parallel
+#   - Architect: Team lead, splits vertically (Architect | Validator)
+#   - Expert: Domain knowledge (API, DB, frontend, etc.)
+#   - Builder: Implementation (Python, C, etc.)
+#   - Research: Code research, GitHub examples, best practices
 #   - Validator: QA/testing - single validator sufficient
 
 param(
@@ -31,7 +40,7 @@ param(
     [string]$Task = "",
 
     [Parameter(Position=1, Mandatory=$false)]
-    [ValidateSet('architect', 'builder', 'validator', 'expert', 'all', 'add-agent', 'layout')]
+    [ValidateSet('architect', 'builder', 'validator', 'expert', 'research', 'all', 'add-agent', 'layout')]
     [string]$Agent = 'all',
 
     [Parameter(Position=2, Mandatory=$false)]
@@ -211,10 +220,13 @@ function Initialize-TeamSession {
 
 ### Domain Insights
 <!-- Expert writes here -->
+
+### Research Findings
+<!-- Research writes here -->
 "@
     Set-Content -Path (Join-Path $TeamSessionDir "scratchpad.md") -Value $scratchpad -Encoding UTF8
 
-    $agents = @('architect', 'expert', 'builder', 'validator')
+    $agents = @('architect', 'validator', 'expert', 'builder', 'research')
     foreach ($agent in $agents) {
         $displayName = (Get-Culture).TextInfo.ToTitleCase($agent)
         $inbox = @"
@@ -243,10 +255,15 @@ function Save-SessionMetadata {
         pane_ids   = @($PaneMap.Values | ForEach-Object { "$_" })
         agents     = @{}
         pane_layout = @{
-            architect = @{
-                pane_id = "$($PaneMap['architect'])"
-                position = "left"
-                fixed = $true
+            left = @{
+                top = @{
+                    agent = "architect"
+                    pane_id = "$($PaneMap['architect'])"
+                }
+                bottom = @{
+                    agent = "validator-1"
+                    pane_id = "$($PaneMap['validator-1'])"
+                }
             }
             columns = @{
                 expert = @{
@@ -259,9 +276,9 @@ function Save-SessionMetadata {
                     agents = @("builder-1")
                     split_direction = "horizontal"
                 }
-                validator = @{
+                research = @{
                     position = "bottom-right"
-                    agents = @("validator-1")
+                    agents = @("research-1")
                     split_direction = "horizontal"
                 }
             }
@@ -328,7 +345,7 @@ function Get-SplitCandidate {
     $targetColumn = switch ($AgentType) {
         "expert" { "expert" }
         "builder" { "builder" }
-        "validator" { "validator" }
+        "research" { "research" }
         default { "builder" }
     }
 
@@ -344,7 +361,7 @@ function Get-SplitCandidate {
         $choices = @()
         $idx = 1
 
-        foreach ($colName in @('expert', 'builder', 'validator')) {
+        foreach ($colName in @('expert', 'builder', 'research')) {
             $col = $columns.$colName
             $agentList = $col.agents -join ', '
             Write-Host "  [$idx] $colName.ToUpper() ($($col.agents.Count) agents: $agentList)" -ForegroundColor Cyan
@@ -411,7 +428,7 @@ function New-AgentName {
     $baseName = switch ($AgentType) {
         "expert" { "expert" }
         "builder" { "builder" }
-        "validator" { "validator" }
+        "research" { "research" }
         default { "agent" }
     }
 
@@ -563,26 +580,24 @@ function Show-Layout {
     Write-Host ""
 
     # Visual layout
-    $architectPane = $session.agents.architect
+    $architectPane = $session.pane_layout.left.top.pane_id
+    $validatorPane = $session.pane_layout.left.bottom.pane_id
     $expertAgents = $session.pane_layout.columns.expert.agents
     $builderAgents = $session.pane_layout.columns.builder.agents
-    $validatorAgents = $session.pane_layout.columns.validator.agents
-
-    # Calculate max column width
-    $maxAgents = (@($expertAgents.Count), @($builderAgents.Count), @($validatorAgents.Count) | Measure-Object -Maximum).Maximum
+    $researchAgents = $session.pane_layout.columns.research.agents
 
     # Display layout
     Write-Host "    +----------------------+----------------------+" -ForegroundColor DarkGray
-    Write-Host "    |                      |       EXPERT         |" -ForegroundColor Cyan
-    Write-Host "    |                      | $($expertAgents[0]) (pane $($session.agents.($expertAgents[0]))) |" -ForegroundColor White
+    Write-Host "    |    Architect         |       EXPERT         |" -ForegroundColor Cyan
+    Write-Host "    |    (pane $architectPane)    | $($expertAgents[0]) (pane $($session.agents.($expertAgents[0]))) |" -ForegroundColor White
 
     for ($i = 1; $i -lt $expertAgents.Count; $i++) {
         Write-Host "    |                      +----------------------+" -ForegroundColor DarkGray
-        Write-Host "    |      ARCHITECT       | $($expertAgents[$i]) (pane $($session.agents.($expertAgents[$i]))) |" -ForegroundColor White
+        Write-Host "    |                      | $($expertAgents[$i]) (pane $($session.agents.($expertAgents[$i]))) |" -ForegroundColor White
     }
 
     if ($builderAgents.Count -gt 0) {
-        Write-Host "    |   (pane $architectPane)    +----------------------+" -ForegroundColor DarkGray
+        Write-Host "    |                      +----------------------+" -ForegroundColor DarkGray
         Write-Host "    |                      |       BUILDER        |" -ForegroundColor Cyan
         Write-Host "    |                      | $($builderAgents[0]) (pane $($session.agents.($builderAgents[0]))) |" -ForegroundColor White
 
@@ -592,22 +607,30 @@ function Show-Layout {
         }
     }
 
-    if ($validatorAgents.Count -gt 0) {
+    if ($researchAgents.Count -gt 0) {
         Write-Host "    |                      +----------------------+" -ForegroundColor DarkGray
-        Write-Host "    |                      |      VALIDATOR       |" -ForegroundColor Cyan
-        Write-Host "    |                      | $($validatorAgents[0]) (pane $($session.agents.($validatorAgents[0]))) |" -ForegroundColor White
+        Write-Host "    |                      |       RESEARCH       |" -ForegroundColor Cyan
+        Write-Host "    |                      | $($researchAgents[0]) (pane $($session.agents.($researchAgents[0]))) |" -ForegroundColor White
 
-        for ($i = 1; $i -lt $validatorAgents.Count; $i++) {
+        for ($i = 1; $i -lt $researchAgents.Count; $i++) {
             Write-Host "    |                      +----------------------+" -ForegroundColor DarkGray
-            Write-Host "    |                      | $($validatorAgents[$i]) (pane $($session.agents.($validatorAgents[$i]))) |" -ForegroundColor White
+            Write-Host "    |                      | $($researchAgents[$i]) (pane $($session.agents.($researchAgents[$i]))) |" -ForegroundColor White
         }
     }
 
     Write-Host "    +----------------------+----------------------+" -ForegroundColor DarkGray
+    Write-Host "    |    Validator         |                      |" -ForegroundColor Cyan
+    Write-Host "    |    (pane $validatorPane)    |                      |" -ForegroundColor White
+    Write-Host "    +----------------------+----------------------+" -ForegroundColor DarkGray
     Write-Host ""
 
     # Detailed breakdown
-    Write-Host "COLUMN BREAKDOWN:" -ForegroundColor Yellow
+    Write-Host "LEFT COLUMN:" -ForegroundColor Yellow
+    Write-Host "  Architect (top): pane $architectPane" -ForegroundColor DarkGray
+    Write-Host "  Validator (bottom): pane $validatorPane" -ForegroundColor DarkGray
+    Write-Host ""
+
+    Write-Host "RIGHT COLUMNS:" -ForegroundColor Yellow
     Write-Host ""
 
     Write-Host "  Expert Column (Top-Right): $($expertAgents.Count) agent(s)" -ForegroundColor Cyan
@@ -622,8 +645,8 @@ function Show-Layout {
     }
 
     Write-Host ""
-    Write-Host "  Validator Column (Bottom-Right): $($validatorAgents.Count) agent(s)" -ForegroundColor Cyan
-    foreach ($agent in $validatorAgents) {
+    Write-Host "  Research Column (Bottom-Right): $($researchAgents.Count) agent(s)" -ForegroundColor Cyan
+    foreach ($agent in $researchAgents) {
         Write-Host "    - $agent (pane $($session.agents.$agent))" -ForegroundColor DarkGray
     }
 
@@ -651,21 +674,22 @@ function Invoke-DevTeam {
 
     $autoStartPrefix = "IMPORTANT: You are part of a 4-agent dev team working in $ProjectDir. Session files are in $sessionDirForPrompt/. Before doing anything else, read the team scratchpad at $sessionDirForPrompt/scratchpad.md and your inbox at $sessionDirForPrompt/inbox-{ROLE}.md. The session metadata with all pane IDs is at $sessionDirForPrompt/session.json."
 
-    $architectAutoStart = "$autoStartPrefix You are the ARCHITECT (Team Lead). You can send messages to other agents by writing to their inbox files (inbox-expert.md, inbox-builder.md, inbox-validator.md). You can also trigger agents to check their inbox by running: wezterm cli send-text --pane-id PANE_ID `"Check your inbox at $sessionDirForPrompt/inbox-AGENT.md for new tasks.`" then wezterm cli send-text --pane-id PANE_ID --no-paste `"`r`n`". Get pane IDs from session.json."
+    $architectAutoStart = "$autoStartPrefix You are the ARCHITECT (Team Lead). You can send messages to other agents by writing to their inbox files (inbox-expert.md, inbox-builder.md, inbox-validator.md, inbox-research.md). You can also trigger agents to check their inbox by running: wezterm cli send-text --pane-id PANE_ID `"Check your inbox at $sessionDirForPrompt/inbox-AGENT.md for new tasks.`" then wezterm cli send-text --pane-id PANE_ID --no-paste `"`r`n`". Get pane IDs from session.json. **CRITICAL WORKFLOW:** When you receive a task, ALWAYS start by using the Research agent to find examples, best practices, and similar projects BEFORE spawning Experts/Builders."
 
     $architectPrompt = if ($Task -ne "") {
-        "$architectAutoStart Your team task is: $Task. Read the scratchpad, then break down this task, write subtasks to each agent's inbox, and coordinate the team."
+        "$architectAutoStart Your team task is: $Task. **WORKFLOW:** 1) Use Research agent to find examples/best practices, 2) Based on findings, spawn appropriate Experts/Builders, 3) Coordinate implementation, 4) Send to Validator. Read the scratchpad, then break down this task."
     } else {
         "$architectAutoStart No task assigned yet. Read the scratchpad, announce your readiness, and wait for the user to provide a task."
     }
 
+    $validatorPrompt = ($autoStartPrefix -replace '{ROLE}', 'validator-1') + " You are the VALIDATOR (QA/testing). Read your inbox and the scratchpad NOW, then announce what tasks you see and your readiness."
     $expertPrompt = ($autoStartPrefix -replace '{ROLE}', 'expert-1') + " You are the EXPERT (domain knowledge). Read your inbox and the scratchpad NOW, then announce what tasks you see and your readiness."
     $builderPrompt = ($autoStartPrefix -replace '{ROLE}', 'builder-1') + " You are the BUILDER (implementation). Read your inbox and the scratchpad NOW, then announce what tasks you see and your readiness."
-    $validatorPrompt = ($autoStartPrefix -replace '{ROLE}', 'validator-1') + " You are the VALIDATOR (QA/testing). Read your inbox and the scratchpad NOW, then announce what tasks you see and your readiness."
+    $researchPrompt = ($autoStartPrefix -replace '{ROLE}', 'research-1') + " You are the RESEARCH agent (code research, examples, best practices). **CRITICAL:** You ONLY search the local directory first (never go outside it). If local files don't have answers, then do web research including GitHub repositories, documentation, and source code examples. Read your inbox and the scratchpad NOW, then announce what tasks you see and your readiness."
 
     $paneMap = @{}
 
-    Write-Host "[1/4] Current terminal -> Architect (Team Lead)..." -ForegroundColor Cyan
+    Write-Host "[1/5] Current terminal -> Architect (Team Lead)..." -ForegroundColor Cyan
     $panes = & $WezTermExe cli list --format json | ConvertFrom-Json
     $currentPaneId = ($panes | Where-Object { $_.is_active -eq $true } | Select-Object -First 1).pane_id
     $knownPanes = @("$currentPaneId")
@@ -674,7 +698,21 @@ function Invoke-DevTeam {
 
     Start-Sleep -Milliseconds 300
 
-    Write-Host "[2/4] Spawning Expert (top-right)..." -ForegroundColor Cyan
+    Write-Host "[2/5] Spawning Validator (bottom-left)..." -ForegroundColor Cyan
+    $escapedValidatorPrompt = $validatorPrompt.Replace("'", "''")
+    $splitArgs = @('cli', 'split-pane', '--bottom', '--percent', '50', '--pane-id', "$currentPaneId", '--cwd', $ProjectDir, '--', 'powershell.exe', '-NoExit', '-Command', "droid validator '$escapedValidatorPrompt'")
+    & $WezTermExe $splitArgs 2>&1 | Out-Null
+    Start-Sleep -Milliseconds 500
+
+    $validatorPaneId = Get-NewPaneId -KnownPaneIds $knownPanes
+    if (-not $validatorPaneId) { Write-Error "Failed to spawn Validator. Aborting."; exit 1 }
+    $knownPanes += "$validatorPaneId"
+    $paneMap['validator-1'] = $validatorPaneId
+    Write-Host "      Pane ID: $validatorPaneId - SUCCESS" -ForegroundColor Green
+
+    Start-Sleep -Milliseconds 300
+
+    Write-Host "[3/5] Spawning Expert (top-right)..." -ForegroundColor Cyan
     $escapedExpertPrompt = $expertPrompt.Replace("'", "''")
     $splitArgs = @('cli', 'split-pane', '--right', '--percent', '50', '--pane-id', "$currentPaneId", '--cwd', $ProjectDir, '--', 'powershell.exe', '-NoExit', '-Command', "droid specialist '$escapedExpertPrompt'")
     & $WezTermExe $splitArgs 2>&1 | Out-Null
@@ -688,7 +726,7 @@ function Invoke-DevTeam {
 
     Start-Sleep -Milliseconds 300
 
-    Write-Host "[3/4] Spawning Builder (middle-right)..." -ForegroundColor Cyan
+    Write-Host "[4/5] Spawning Builder (middle-right)..." -ForegroundColor Cyan
     $escapedBuilderPrompt = $builderPrompt.Replace("'", "''")
     $splitArgs = @('cli', 'split-pane', '--bottom', '--percent', '50', '--pane-id', "$expertPaneId", '--cwd', $ProjectDir, '--', 'powershell.exe', '-NoExit', '-Command', "droid builder '$escapedBuilderPrompt'")
     & $WezTermExe $splitArgs 2>&1 | Out-Null
@@ -702,17 +740,17 @@ function Invoke-DevTeam {
 
     Start-Sleep -Milliseconds 300
 
-    Write-Host "[4/4] Spawning Validator (bottom-right)..." -ForegroundColor Cyan
-    $escapedValidatorPrompt = $validatorPrompt.Replace("'", "''")
-    $splitArgs = @('cli', 'split-pane', '--bottom', '--percent', '50', '--pane-id', "$builderPaneId", '--cwd', $ProjectDir, '--', 'powershell.exe', '-NoExit', '-Command', "droid validator '$escapedValidatorPrompt'")
+    Write-Host "[5/5] Spawning Research (bottom-right)..." -ForegroundColor Cyan
+    $escapedResearchPrompt = $researchPrompt.Replace("'", "''")
+    $splitArgs = @('cli', 'split-pane', '--bottom', '--percent', '50', '--pane-id', "$builderPaneId", '--cwd', $ProjectDir, '--', 'powershell.exe', '-NoExit', '-Command', "droid specialist '$escapedResearchPrompt'")
     & $WezTermExe $splitArgs 2>&1 | Out-Null
     Start-Sleep -Milliseconds 500
 
-    $validatorPaneId = Get-NewPaneId -KnownPaneIds $knownPanes
-    if (-not $validatorPaneId) { Write-Error "Failed to spawn Validator. Aborting."; exit 1 }
-    $knownPanes += "$validatorPaneId"
-    $paneMap['validator-1'] = $validatorPaneId
-    Write-Host "      Pane ID: $validatorPaneId - SUCCESS" -ForegroundColor Green
+    $researchPaneId = Get-NewPaneId -KnownPaneIds $knownPanes
+    if (-not $researchPaneId) { Write-Error "Failed to spawn Research. Aborting."; exit 1 }
+    $knownPanes += "$researchPaneId"
+    $paneMap['research-1'] = $researchPaneId
+    Write-Host "      Pane ID: $researchPaneId - SUCCESS" -ForegroundColor Green
 
     Save-SessionMetadata -TaskDescription $Task -PaneMap $paneMap
 
@@ -731,12 +769,18 @@ function Invoke-DevTeam {
     Write-Host ""
     Write-Host "LAYOUT:" -ForegroundColor Yellow
     Write-Host "  +------------------+------------------+" -ForegroundColor Yellow
-    Write-Host "  |                  |      Expert      |" -ForegroundColor Yellow
-    Write-Host "  |                  +------------------+" -ForegroundColor Yellow
-    Write-Host "  |    Architect     |     Builder      |" -ForegroundColor Yellow
+    Write-Host "  |    Architect     |      Expert      |" -ForegroundColor Yellow
     Write-Host "  |   (this pane)    +------------------+" -ForegroundColor Yellow
-    Write-Host "  |                  |    Validator     |" -ForegroundColor Yellow
+    Write-Host "  |                  |     Builder      |" -ForegroundColor Yellow
     Write-Host "  +------------------+------------------+" -ForegroundColor Yellow
+    Write-Host "  |    Validator     |                 |" -ForegroundColor Yellow
+    Write-Host "  +------------------+     Research     |" -ForegroundColor Yellow
+    Write-Host "  +------------------+------------------+" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "WORKFLOW:" -ForegroundColor Yellow
+    Write-Host "  User → Architect → Research (find examples)" -ForegroundColor Yellow
+    Write-Host "  Research → Architect → spawn Experts/Builders" -ForegroundColor Yellow
+    Write-Host "  Team → Validator (final QA)" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "COMMANDS:" -ForegroundColor Yellow
     Write-Host "  devteam status        - Show team progress" -ForegroundColor Yellow
