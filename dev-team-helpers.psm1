@@ -44,7 +44,7 @@ function Invoke-WezTermSplit {
         $result = Invoke-Expression $cmd 2>&1
         
         if ($LASTEXITCODE -ne 0) {
-            throw "WezTerm split failed with exit code $LASTEXITCODE: $result"
+            throw "WezTerm split failed with exit code ${LASTEXITCODE}: $result"
         }
         
         $newPaneId = $result.Trim()
@@ -65,11 +65,12 @@ function Invoke-AgentCommand {
         [string]$Command
     )
     
-    # Escape double quotes in command
-    $escapedCmd = $Command -replace '"', '\"'
+    # Step 1: Send the command text
+    wezterm cli send-text --pane-id $PaneId $Command 2>&1 | Out-Null
+    Start-Sleep -Milliseconds 100
     
-    # Send command with carriage return
-    $result = wezterm cli send-text --pane-id $PaneId --no-paste "$escapedCmd`r" 2>&1
+    # Step 2: Send Enter key separately (two-step approach for Windows)
+    wezterm cli send-text --pane-id $PaneId --no-paste "`r`n" 2>&1 | Out-Null
     
     if ($LASTEXITCODE -ne 0) {
         Write-TeamLog "Failed to send command to pane $PaneId" -Level Warning
@@ -148,7 +149,7 @@ function Start-AgentInPane {
         [string]$PaneId,
         
         [Parameter(Mandatory)]
-        [ValidateSet('architect', 'builder', 'validator', 'expert', 'research')]
+        [ValidateSet('architect', 'builder', 'validator', 'expert', 'researcher')]
         [string]$AgentType,
         
         [string]$Prompt,
@@ -156,29 +157,15 @@ function Start-AgentInPane {
         [string]$Name
     )
     
-    $droidCmd = switch ($AgentType) {
-        'architect' { "factory-droid agent architect" }
-        'builder' { "factory-droid agent builder" }
-        'validator' { "factory-droid agent validator" }
-        { "factory-droid agent $AgentType" }
-    }
+    # Build the droid command with single-quoted prompt to avoid PS escaping issues
+    $escapedPrompt = $Prompt -replace "'", "''"
+    $droidCmd = "droid $AgentType '$escapedPrompt'"
     
-    if ($Name) {
-        $droidCmd += " --name $Name"
-    }
-    
-    if ($Prompt) {
-        $droidCmd += " `"$Prompt`""
-    }
-    
-    # Escape the command for send-text
-    $escapedCmd = $droidCmd -replace '"', '\"'
-    
-    # Send to spawn the droid
-    wezterm cli send-text --pane-id $PaneId $escapedCmd 2>&1 | Out-Null
+    # Send command text to the pane
+    wezterm cli send-text --pane-id $PaneId $droidCmd 2>&1 | Out-Null
     Start-Sleep -Milliseconds 100
     
-    # Send Enter key
+    # Send Enter key separately (two-step approach for Windows)
     wezterm cli send-text --pane-id $PaneId --no-paste "`r`n" 2>&1 | Out-Null
 }
 
@@ -249,11 +236,11 @@ function Add-Agent {
 
 # Export functions
 Export-ModuleMember -Function @(
-    Write-TeamLog,
-    Invoke-WezTermSplit,
-    Invoke-AgentCommand,
-    Get-WezTermPanes,
-    Initialize-DevTeamLayout,
-    Start-AgentInPane,
-    Add-Agent
+    'Write-TeamLog',
+    'Invoke-WezTermSplit',
+    'Invoke-AgentCommand',
+    'Get-WezTermPanes',
+    'Initialize-DevTeamLayout',
+    'Start-AgentInPane',
+    'Add-Agent'
 )

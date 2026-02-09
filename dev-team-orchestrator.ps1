@@ -31,17 +31,31 @@ if (Test-Path $HelperModule) {
 # ── Handle subcommands ──
 
 if ($Task -eq 'stop') {
-    . ~/.factory/scripts/dev-team-orchestrator.ps1 @PSBoundParameters
+    Write-Host "Stopping dev team session..." -ForegroundColor Yellow
+    # TODO: Implement stop logic
     exit 0
 }
 
 if ($Task -eq 'status') {
-    . ~/.factory/scripts/dev-team-orchestrator.ps1 @PSBoundParameters
+    Write-Host "Dev team status..." -ForegroundColor Cyan
+    $sessionFile = Join-Path (Get-Location).Path ".devteam/session.json"
+    if (Test-Path $sessionFile) {
+        Get-Content $sessionFile -Raw | ConvertFrom-Json | Format-List
+    } else {
+        Write-Host "No active session found." -ForegroundColor Yellow
+    }
     exit 0
 }
 
 if ($Task -eq 'layout') {
-    . ~/.factory/scripts/dev-team-orchestrator.ps1 @PSBoundParameters
+    Write-Host "Dev team layout..." -ForegroundColor Cyan
+    Write-Host "  +----------+----+----+----+" -ForegroundColor Yellow
+    Write-Host "  |          | E1 | E2 | E3 |  Expert row" -ForegroundColor Yellow
+    Write-Host "  |    A     +----+----+----+" -ForegroundColor Yellow
+    Write-Host "  |          | B1 | B2 | B3 |  Builder row" -ForegroundColor Yellow
+    Write-Host "  +----------+----+----+----+" -ForegroundColor Yellow
+    Write-Host "  |    V     | R1 | R2 |    |  Research row" -ForegroundColor Yellow
+    Write-Host "  +----------+----+----+----+" -ForegroundColor Yellow
     exit 0
 }
 
@@ -69,7 +83,7 @@ try {
     
     # Architect prompt
     $architectPrompt = if ($Task) {
-        "IMPORTANT: You are the ARCHITECT (Team Lead). Session: $sessionDirForPrompt/. Team task: $Task. **CRITICAL WORKFLOW:** 1) Use Research agent to find examples/best practices, 2) Based on findings, spawn appropriate Experts/Builders, 3) Coordinate implementation, 4) Send to Validator."
+        "IMPORTANT: You are the ARCHITECT (Team Lead). Session: $sessionDirForPrompt/. Team task: $Task. CRITICAL WORKFLOW: Step 1 - Use Research agent to find examples and best practices. Step 2 - Based on findings, spawn appropriate Experts and Builders. Step 3 - Coordinate implementation. Step 4 - Send to Validator."
     } else {
         "IMPORTANT: You are the ARCHITECT (Team Lead). Session: $sessionDirForPrompt/. Read scratchpad and inbox, announce readiness."
     }
@@ -101,7 +115,7 @@ try {
     Write-Host ""
     Write-Host "💡 Layout:" -ForegroundColor Yellow
     Write-Host "   Left: Architect (top) | Validator (bottom)" -ForegroundColor Gray
-    Write-Host "   Right: Expert | Builder | Researcher (rows, grow right)" -ForegroundColor Gray
+    Write-Host "   Right: Expert / Builder / Researcher rows - grow right" -ForegroundColor Gray
     Write-Host ""
     Write-Host "📝 To add more agents, use:" -ForegroundColor Yellow
     Write-Host "   Add-Agent -Type Expert -Name 'frontend-expert'" -ForegroundColor Gray
@@ -126,7 +140,7 @@ try {
             validator = $layout.Validator
             'expert-1' = $layout.ExpertRow
             'builder-1' = $layout.BuilderRow
-            'researcher-1' $layout.ResearcherRow
+            'researcher-1' = $layout.ResearcherRow
         }
         pane_layout = @{
             left = @{
