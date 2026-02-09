@@ -44,17 +44,21 @@ Append to the "Implementation Notes" section in `.devteam/scratchpad.md`:
 
 ### Step 5: NOTIFY THE ARCHITECT (CRITICAL!)
 
-You are NOT done until you tell the Architect your work is complete. Read session.json for the architect pane ID, then:
+You are NOT done until you tell the Architect your work is complete. Use the proxy script:
 
 ```powershell
-# Step 1: Send the message
-wezterm cli send-text --pane-id ARCHITECT_PANE_ID "Implementation complete for [feature]. Details in scratchpad. Ready for validation."
-
-# Step 2: Send Enter key
-wezterm cli send-text --pane-id ARCHITECT_PANE_ID --no-paste "`r`n"
+# Preferred: one command notifies the Architect's pane
+& .\.devteam\devteam.ps1 notify architect "Implementation complete for [feature]. Details in scratchpad. Ready for validation."
 ```
 
-**Both steps are required.**
+**Fallback** (if proxy script fails): Read session.json for pane IDs and use piped send-text:
+```powershell
+$session = Get-Content .devteam/session.json | ConvertFrom-Json
+$paneId = $session.agents.architect
+"Implementation complete. Details in scratchpad." | wezterm cli send-text --pane-id $paneId --no-paste
+Start-Sleep -Milliseconds 200
+"`r`n" | wezterm cli send-text --pane-id $paneId --no-paste
+```
 
 ## The Build-Validate Loop
 
@@ -76,10 +80,15 @@ When you receive feedback from the Validator:
 
 ## Communication
 
-### Sending Notifications (Two-Step)
+### Sending Notifications
 ```powershell
-wezterm cli send-text --pane-id PANE_ID "Your message here."
-wezterm cli send-text --pane-id PANE_ID --no-paste "`r`n"
+# Preferred: use proxy script
+& .\.devteam\devteam.ps1 notify architect "Your message here."
+
+# Fallback: piped send-text
+$session = Get-Content .devteam/session.json | ConvertFrom-Json
+"Your message here." | wezterm cli send-text --pane-id $session.agents.architect --no-paste
+"`r`n" | wezterm cli send-text --pane-id $session.agents.architect --no-paste
 ```
 
 ### If You Need Something

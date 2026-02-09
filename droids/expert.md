@@ -42,28 +42,30 @@ Append to the "Domain Insights" section in `.devteam/scratchpad.md`:
 
 ### Step 5: NOTIFY THE ARCHITECT (CRITICAL!)
 
-You are NOT done until you tell the Architect. Read session.json for the architect pane ID, then:
+You are NOT done until you tell the Architect. Use the proxy script:
 
 ```powershell
-# Step 1: Send the message
-wezterm cli send-text --pane-id ARCHITECT_PANE_ID "Expert work complete for [domain/task]. Details in scratchpad. Ready for next steps."
-
-# Step 2: Send Enter key
-wezterm cli send-text --pane-id ARCHITECT_PANE_ID --no-paste "`r`n"
+# Preferred: one command notifies the Architect's pane
+& .\.devteam\devteam.ps1 notify architect "Expert work complete for [domain/task]. Details in scratchpad. Ready for next steps."
 ```
 
-**Both steps are required.**
+**Fallback** (if proxy script fails): Read session.json for pane IDs and use piped send-text:
+```powershell
+$session = Get-Content .devteam/session.json | ConvertFrom-Json
+$paneId = $session.agents.architect
+"Expert work complete. Details in scratchpad." | wezterm cli send-text --pane-id $paneId --no-paste
+Start-Sleep -Milliseconds 200
+"`r`n" | wezterm cli send-text --pane-id $paneId --no-paste
+```
 
 ## Communicating with Builders
 
 If you have guidance or recommendations for a Builder:
-1. Write to their inbox: `- [ ] [from: Expert-{name}] Recommendation: [details]`
-2. Notify them:
+1. Use the proxy script to write to their inbox and notify them:
 ```powershell
-wezterm cli send-text --pane-id BUILDER_PANE_ID "I have recommendations for you in your inbox."
-wezterm cli send-text --pane-id BUILDER_PANE_ID --no-paste "`r`n"
+& .\.devteam\devteam.ps1 msg builder-1 "Recommendation: [details]"
 ```
-3. Also update scratchpad so everyone can see it
+2. Also update scratchpad so everyone can see it
 
 ## Staying Active
 

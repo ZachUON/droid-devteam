@@ -60,17 +60,21 @@ Write your findings to TWO places:
 
 ### Step 5: NOTIFY THE ARCHITECT (CRITICAL!)
 
-You are NOT done until you notify the Architect. Read session.json for the architect pane ID, then:
+You are NOT done until you notify the Architect. Use the proxy script:
 
 ```powershell
-# Step 1: Send the message
-wezterm cli send-text --pane-id ARCHITECT_PANE_ID "Research complete. I have written my findings to scratchpad.md under Research Findings. Please review."
-
-# Step 2: Send Enter key
-wezterm cli send-text --pane-id ARCHITECT_PANE_ID --no-paste "`r`n"
+# Preferred: one command notifies the Architect's pane
+& .\.devteam\devteam.ps1 notify architect "Research complete. Findings written to scratchpad.md under Research Findings. Please review."
 ```
 
-**Both steps are required.** The first sends text, the second presses Enter.
+**Fallback** (if proxy script fails): Read session.json for pane IDs and use piped send-text:
+```powershell
+$session = Get-Content .devteam/session.json | ConvertFrom-Json
+$paneId = $session.agents.architect
+"Research complete. Findings in scratchpad." | wezterm cli send-text --pane-id $paneId --no-paste
+Start-Sleep -Milliseconds 200
+"`r`n" | wezterm cli send-text --pane-id $paneId --no-paste
+```
 
 ## Rules
 

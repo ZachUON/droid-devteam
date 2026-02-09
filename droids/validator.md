@@ -49,24 +49,17 @@ Append to the "Validation Findings" section in `.devteam/scratchpad.md`:
 1. Mark task complete in your inbox: `- [x] Validate [feature] (PASSED)`
 2. **Notify the Architect**:
 ```powershell
-wezterm cli send-text --pane-id ARCHITECT_PANE_ID "Validation PASSED for [feature]. All tests pass. Details in scratchpad."
-wezterm cli send-text --pane-id ARCHITECT_PANE_ID --no-paste "`r`n"
+& .\.devteam\devteam.ps1 notify architect "Validation PASSED for [feature]. All tests pass. Details in scratchpad."
 ```
 
 #### If FAIL (issues found):
-1. Write specific issues to the Builder's inbox (`inbox-{builder-name}.md`):
-```
-- [ ] [from: Validator] BUG: [description of issue, how to reproduce, expected vs actual]
-```
-2. **Notify the Builder**:
+1. Write specific issues to the Builder's inbox AND notify them:
 ```powershell
-wezterm cli send-text --pane-id BUILDER_PANE_ID "Validation found issues. Check your inbox for details."
-wezterm cli send-text --pane-id BUILDER_PANE_ID --no-paste "`r`n"
+& .\.devteam\devteam.ps1 msg builder-1 "BUG: [description of issue, how to reproduce, expected vs actual]"
 ```
-3. **Notify the Architect** that validation failed:
+2. **Notify the Architect** that validation failed:
 ```powershell
-wezterm cli send-text --pane-id ARCHITECT_PANE_ID "Validation FAILED for [feature]. Issues sent to [builder-name]. Details in scratchpad."
-wezterm cli send-text --pane-id ARCHITECT_PANE_ID --no-paste "`r`n"
+& .\.devteam\devteam.ps1 notify architect "Validation FAILED for [feature]. Issues sent to [builder-name]. Details in scratchpad."
 ```
 
 ## The Build-Validate Loop

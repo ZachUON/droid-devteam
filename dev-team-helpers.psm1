@@ -125,6 +125,82 @@ function Initialize-SessionFiles {
         Set-Content -Path (Join-Path $SessionDir "inbox-$agent.md") -Value $inbox -Encoding UTF8
     }
 
+    # Create devteam proxy script (agents can't use the profile function)
+    $orchestratorPath = "$env:USERPROFILE\.factory\scripts\dev-team-orchestrator.ps1"
+    $proxyScript = @'
+# devteam proxy - callable from droid EXECUTE tool
+# Usage: & .\.devteam\devteam.ps1 msg builder-1 "Your task here"
+#        & .\.devteam\devteam.ps1 add-agent expert frontend
+param([Parameter(ValueFromRemainingArguments)][string[]]$Params)
+
+$scriptDir = $PSScriptRoot
+$cmd = if ($Params.Count -gt 0) { $Params[0] } else { '' }
+$arg1 = if ($Params.Count -gt 1) { $Params[1] } else { '' }
+$rest = if ($Params.Count -gt 2) { ($Params[2..($Params.Count - 1)] -join ' ') } else { '' }
+
+switch ($cmd) {
+    'msg' {
+        if (-not $arg1 -or -not $rest) {
+            Write-Host "Usage: & .\.devteam\devteam.ps1 msg <agent-name> <message>"
+            exit 1
+        }
+        $sessionFile = Join-Path $scriptDir 'session.json'
+        if (-not (Test-Path $sessionFile)) { Write-Error "No session.json found"; exit 1 }
+        $session = Get-Content $sessionFile -Raw | ConvertFrom-Json
+        $paneId = $session.agents.$arg1
+        if (-not $paneId) {
+            Write-Host "Agent '$arg1' not found. Available agents:"
+            foreach ($p in $session.agents.PSObject.Properties) { Write-Host "  - $($p.Name) (pane $($p.Value))" }
+            exit 1
+        }
+        $inboxPath = Join-Path $scriptDir "inbox-$arg1.md"
+        if (-not (Test-Path $inboxPath)) {
+            Set-Content $inboxPath "# Inbox: $arg1`n## Pending Tasks`n`n## Completed" -Encoding UTF8
+        }
+        $ts = Get-Date -Format 'HH:mm:ss'
+        $content = Get-Content $inboxPath -Raw
+        $content = $content -replace '(## Pending Tasks\r?\n)', "`$1- [ ] [$ts from Architect] $rest`n"
+        Set-Content $inboxPath $content -Encoding UTF8
+        "New task in your inbox from Architect. Read inbox-$arg1.md now." | wezterm cli send-text --pane-id $paneId --no-paste
+        Start-Sleep -Milliseconds 200
+        "`r`n" | wezterm cli send-text --pane-id $paneId --no-paste
+        Write-Host "Message sent to $arg1 (pane $paneId): $rest"
+    }
+    'add-agent' {
+        $orchPath = Join-Path $env:USERPROFILE '.factory\scripts\dev-team-orchestrator.ps1'
+        if (Test-Path $orchPath) {
+            & $orchPath @Params
+        } else {
+            Write-Error "Orchestrator not found at $orchPath"
+        }
+    }
+    'notify' {
+        # Lightweight: just send a pane notification (no inbox write)
+        if (-not $arg1 -or -not $rest) {
+            Write-Host "Usage: & .\.devteam\devteam.ps1 notify <agent-name> <message>"
+            exit 1
+        }
+        $sessionFile = Join-Path $scriptDir 'session.json'
+        $session = Get-Content $sessionFile -Raw | ConvertFrom-Json
+        $paneId = $session.agents.$arg1
+        if (-not $paneId) { Write-Error "Agent '$arg1' not found"; exit 1 }
+        "$rest" | wezterm cli send-text --pane-id $paneId --no-paste
+        Start-Sleep -Milliseconds 200
+        "`r`n" | wezterm cli send-text --pane-id $paneId --no-paste
+        Write-Host "Notified $arg1 (pane $paneId)"
+    }
+    default {
+        $orchPath = Join-Path $env:USERPROFILE '.factory\scripts\dev-team-orchestrator.ps1'
+        if (Test-Path $orchPath) {
+            & $orchPath @Params
+        } else {
+            Write-Error "Orchestrator not found at $orchPath"
+        }
+    }
+}
+'@
+    Set-Content -Path (Join-Path $SessionDir "devteam.ps1") -Value $proxyScript -Encoding UTF8
+
     Write-TeamLog "Session files created in $SessionDir" -Level Success
 }
 
@@ -447,7 +523,7 @@ function Invoke-AddAgent {
 
     # Build prompt for new agent
     $domainStr = if ($Domain) { " specializing in $Domain" } else { "" }
-    $reportBack = "When your work is done, write findings to scratchpad.md, mark tasks complete in your inbox, then NOTIFY THE ARCHITECT using two-step send-text. You are not done until the Architect knows."
+    $reportBack = "When your work is done, write findings to scratchpad.md, mark tasks complete in your inbox, then NOTIFY THE ARCHITECT by running: & .\.devteam\devteam.ps1 notify architect 'Your-status-message'. You are not done until the Architect knows."
 
     $rolePrompt = switch ($AgentType) {
         'expert'   { "You are $newName, a domain EXPERT$domainStr. Do your assigned work, write to scratchpad, notify Architect when done." }
@@ -571,18 +647,20 @@ function Invoke-StartTeam {
     $baseCtx = "You are part of an AI dev team in $ProjectDir. Session files: $sessionDirForPrompt/. Read scratchpad.md and your inbox FIRST. Pane IDs are in session.json - use two-step send-text to communicate."
 
     $architectPrompt = if ($Task) {
-        "$baseCtx You are the ARCHITECT (Team Lead). Task: $Task. Read your droid instructions carefully. CRITICAL COMMANDS - use 'devteam add-agent TYPE' to spawn agents and 'devteam msg AGENT-NAME message' to assign tasks. devteam msg writes to their inbox AND notifies their pane - ALWAYS use it instead of manually writing files. WORKFLOW: 1-Assess research needs, spawn researchers with 'devteam add-agent research'. 2-Assign each researcher a topic with 'devteam msg research-1 topic'. 3-WAIT for research findings. 4-Based on findings spawn experts and builders. 5-Assign tasks with 'devteam msg builder-1 task'. 6-Send to Validator with 'devteam msg validator test X'. 7-Build-validate loop until Validator passes. 8-YOU review final result. 9-If anything missing, send back to builders. 10-Only report done when fully complete."
+        "$baseCtx You are the ARCHITECT (Team Lead). Task: $Task. Read your droid instructions carefully. CRITICAL: use the proxy script for ALL commands. To assign tasks run: & .\.devteam\devteam.ps1 msg AGENT-NAME message - this writes to their inbox AND notifies their pane. To spawn agents run: & .\.devteam\devteam.ps1 add-agent TYPE. Do NOT use bare 'devteam' - it will not work from your EXECUTE tool. WORKFLOW: 1-Assess research needs, spawn researchers. 2-Assign each researcher a topic with the msg command. 3-WAIT for research findings. 4-Based on findings spawn experts and builders. 5-Assign tasks with msg command. 6-Send to Validator with msg command. 7-Build-validate loop until Validator passes. 8-YOU review final result. 9-If anything missing, send back to builders. 10-Only report done when fully complete."
     } else {
-        "$baseCtx You are the ARCHITECT (Team Lead). No task yet. Read scratchpad and inbox, announce readiness. Use 'devteam msg AGENT message' to assign tasks and 'devteam add-agent TYPE' to spawn agents. When you get a task, FIRST assess research needs, spawn researchers, wait for findings, THEN spawn experts and builders. Never stop until the full task is delivered."
+        "$baseCtx You are the ARCHITECT (Team Lead). No task yet. Read scratchpad and inbox, announce readiness. Use '& .\.devteam\devteam.ps1 msg AGENT message' to assign tasks and '& .\.devteam\devteam.ps1 add-agent TYPE' to spawn agents. Do NOT use bare 'devteam'. When you get a task, FIRST assess research needs, spawn researchers, wait for findings, THEN spawn experts and builders. Never stop until the full task is delivered."
     }
 
-    $validatorPrompt = "$baseCtx You are the VALIDATOR. When you get work to test: test thoroughly, write findings to scratchpad. If PASS - notify Architect. If FAIL - write issues to the Builder inbox AND notify both Builder and Architect. The build-validate loop continues until you pass. Read inbox at $sessionDirForPrompt/inbox-validator.md now."
+    $notifyCmd = "& .\.devteam\devteam.ps1 notify architect"
 
-    $expertPrompt = "$baseCtx You are expert-1, a domain EXPERT. Do your assigned work, write findings to scratchpad, then NOTIFY THE ARCHITECT when done using two-step send-text. You are not done until the Architect knows. Read inbox at $sessionDirForPrompt/inbox-expert-1.md now."
+    $validatorPrompt = "$baseCtx You are the VALIDATOR. When you get work to test: test thoroughly, write findings to scratchpad. If PASS - notify Architect with: $notifyCmd 'Validation PASSED'. If FAIL - send issues to Builder with: & .\.devteam\devteam.ps1 msg builder-1 'BUG: details' then notify Architect. The build-validate loop continues until you pass. Read inbox at $sessionDirForPrompt/inbox-validator.md now."
 
-    $builderPrompt = "$baseCtx You are builder-1, a BUILDER. Implement assigned tasks, write progress to scratchpad, then NOTIFY THE ARCHITECT when done. If Validator finds issues, fix them and notify Architect again. Read inbox at $sessionDirForPrompt/inbox-builder-1.md now."
+    $expertPrompt = "$baseCtx You are expert-1, a domain EXPERT. Do your assigned work, write findings to scratchpad, then NOTIFY THE ARCHITECT when done with: $notifyCmd 'Expert work complete. See scratchpad.' You are not done until the Architect knows. Read inbox at $sessionDirForPrompt/inbox-expert-1.md now."
 
-    $researchPrompt = "$baseCtx You are research-1, a RESEARCHER. Search local directory ONLY first - never look outside project folder. If local insufficient, do web research. Write findings to scratchpad Research Findings section, then NOTIFY THE ARCHITECT when done using two-step send-text. You are not done until the Architect knows. Read inbox at $sessionDirForPrompt/inbox-research-1.md now."
+    $builderPrompt = "$baseCtx You are builder-1, a BUILDER. Implement assigned tasks, write progress to scratchpad, then NOTIFY THE ARCHITECT when done with: $notifyCmd 'Build complete. Ready for validation.' If Validator finds issues, fix them and notify Architect again. Read inbox at $sessionDirForPrompt/inbox-builder-1.md now."
+
+    $researchPrompt = "$baseCtx You are research-1, a RESEARCHER. Search local directory ONLY first - never look outside project folder. If local insufficient, do web research. Write findings to scratchpad Research Findings section, then NOTIFY THE ARCHITECT when done with: $notifyCmd 'Research complete. Findings in scratchpad.' You are not done until the Architect knows. Read inbox at $sessionDirForPrompt/inbox-research-1.md now."
 
     # Send droid commands to each pane
     $escapedArchPrompt = $architectPrompt -replace "'", "''"

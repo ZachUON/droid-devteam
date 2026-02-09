@@ -36,21 +36,21 @@ Then decide how many research agents you need. You start with `research-1`, but 
 
 ```powershell
 # Spawn additional researchers as needed
-devteam add-agent research
-devteam add-agent research
+& .\.devteam\devteam.ps1 add-agent research
+& .\.devteam\devteam.ps1 add-agent research
 ```
 
 ### Phase 2: Assign Research Tasks
 
-Give each researcher a SPECIFIC, focused task using `devteam msg`:
+Give each researcher a SPECIFIC, focused task using the proxy script:
 
 ```powershell
 # One command does everything: writes to inbox + notifies the agent's pane
-devteam msg research-1 "Research frontend calculator UI patterns. Find GitHub repos with scientific calculator UIs, keyboard support patterns, responsive design examples."
-devteam msg research-2 "Research JavaScript math libraries. Find existing libraries for scientific functions, precision handling, expression parsing."
+& .\.devteam\devteam.ps1 msg research-1 "Research frontend calculator UI patterns. Find GitHub repos with scientific calculator UIs, keyboard support patterns, responsive design examples."
+& .\.devteam\devteam.ps1 msg research-2 "Research JavaScript math libraries. Find existing libraries for scientific functions, precision handling, expression parsing."
 ```
 
-**ALWAYS use `devteam msg` to assign tasks.** It writes to their inbox and sends a pane notification in one step. If you write to inbox files manually, the agent won't know to check them.
+**ALWAYS use `.devteam\devteam.ps1 msg` to assign tasks.** It writes to their inbox AND sends a pane notification in one step. If you write to inbox files manually without notifying, **the agent will never see it**.
 
 ### Phase 3: WAIT for Research
 
@@ -64,12 +64,12 @@ Based on what the research uncovered, decide:
 
 ```powershell
 # Spawn domain experts
-devteam add-agent expert frontend
-devteam add-agent expert api
+& .\.devteam\devteam.ps1 add-agent expert frontend
+& .\.devteam\devteam.ps1 add-agent expert api
 
 # Spawn builders for parallel work
-devteam add-agent builder
-devteam add-agent builder
+& .\.devteam\devteam.ps1 add-agent builder
+& .\.devteam\devteam.ps1 add-agent builder
 ```
 
 Each new agent gets its own pane (row splits horizontally), inbox file, and session.json entry.
@@ -77,11 +77,11 @@ Each new agent gets its own pane (row splits horizontally), inbox file, and sess
 ### Phase 5: Coordinate Implementation
 
 1. Write architecture decisions to scratchpad.md (informed by research)
-2. Assign specific tasks using `devteam msg`:
+2. Assign specific tasks using the proxy script:
    ```powershell
-   devteam msg expert-frontend "Design the UI component structure. See scratchpad for research findings."
-   devteam msg builder-1 "Implement the core engine using math.js. See scratchpad for architecture."
-   devteam msg builder-2 "Implement keyboard support and expression display."
+   & .\.devteam\devteam.ps1 msg expert-frontend "Design the UI component structure. See scratchpad for research findings."
+   & .\.devteam\devteam.ps1 msg builder-1 "Implement the core engine using math.js. See scratchpad for architecture."
+   & .\.devteam\devteam.ps1 msg builder-2 "Implement keyboard support and expression display."
    ```
 3. Facilitate communication between agents
 4. Review progress and resolve conflicts
@@ -91,7 +91,7 @@ Each new agent gets its own pane (row splits horizontally), inbox file, and sess
 When builders report their work is done:
 1. Send a validation task:
    ```powershell
-   devteam msg validator "Test the [feature]. Files: [list]. See scratchpad for what was built."
+   & .\.devteam\devteam.ps1 msg validator "Test the [feature]. Files: [list]. See scratchpad for what was built."
    ```
 
 The Validator will either PASS or FAIL:
@@ -129,32 +129,45 @@ All coordination happens through files in `.devteam/`:
 
 ## Communication Protocol
 
-### Assigning Tasks (PREFERRED: `devteam msg`)
+### Assigning Tasks (USE THE PROXY SCRIPT)
 
-**ALWAYS use `devteam msg` to assign tasks.** One command writes to the agent's inbox AND notifies their pane:
-
-```powershell
-devteam msg builder-1 "Implement the login page with JWT auth"
-devteam msg research-1 "Research CSS Grid best practices for dashboards"
-devteam msg validator "Test the dashboard. Files: index.html. See scratchpad."
-```
-
-This is the ONLY reliable way to ensure an agent receives a task. If you write to an inbox file manually without notifying the pane, **the agent will never see it**.
-
-### Manual Notifications (fallback only)
-
-If `devteam msg` is unavailable, you can manually write to inbox files and notify:
+**ALWAYS use `.devteam\devteam.ps1 msg` to assign tasks.** One command writes to the agent's inbox AND notifies their pane:
 
 ```powershell
-# 1. Append task to inbox file
-# 2. Read session.json for pane IDs
-Get-Content .devteam/session.json
-# 3. Two-step send-text notification
-wezterm cli send-text --pane-id PANE_ID "Check your inbox for new tasks."
-wezterm cli send-text --pane-id PANE_ID --no-paste "`r`n"
+& .\.devteam\devteam.ps1 msg builder-1 "Implement the login page with JWT auth"
+& .\.devteam\devteam.ps1 msg research-1 "Research CSS Grid best practices for dashboards"
+& .\.devteam\devteam.ps1 msg validator "Test the dashboard. Files: index.html. See scratchpad."
 ```
 
-**All three steps are required.** Skip the notification and the agent won't know to check.
+**IMPORTANT:** Do NOT use bare `devteam` — that only works in the user's terminal, not from your EXECUTE tool. Always use `& .\.devteam\devteam.ps1`.
+
+This is the ONLY reliable way to ensure an agent receives a task. If you write to an inbox file manually without sending a pane notification, **the agent will never see it**.
+
+### Spawning New Agents
+
+```powershell
+& .\.devteam\devteam.ps1 add-agent research
+& .\.devteam\devteam.ps1 add-agent expert frontend
+& .\.devteam\devteam.ps1 add-agent builder
+```
+
+### Lightweight Pane Notification (no inbox write)
+
+```powershell
+& .\.devteam\devteam.ps1 notify builder-1 "Check the scratchpad for updates."
+```
+
+### Manual Notifications (last resort fallback)
+
+If the proxy script is unavailable, read session.json for pane IDs and use two-step send-text:
+
+```powershell
+$session = Get-Content .devteam/session.json | ConvertFrom-Json
+$paneId = $session.agents.'builder-1'
+"Check your inbox for new tasks." | wezterm cli send-text --pane-id $paneId --no-paste
+Start-Sleep -Milliseconds 200
+"`r`n" | wezterm cli send-text --pane-id $paneId --no-paste
+```
 
 ### Shared Context
 - Write architecture decisions, research findings, and progress to `scratchpad.md`
@@ -166,12 +179,12 @@ You can add agents at any time during the session:
 
 | Command | Effect |
 |---------|--------|
-| `devteam add-agent expert frontend` | Adds frontend expert (splits Expert row) |
-| `devteam add-agent expert api` | Adds API expert (splits Expert row) |
-| `devteam add-agent builder` | Adds builder-2 (splits Builder row) |
-| `devteam add-agent research` | Adds research-2 (splits Research row) |
-| `devteam msg builder-1 "task"` | Send task to agent (writes inbox + notifies pane) |
-| `devteam msg validator "test X"` | Send validation task |
+| `& .\.devteam\devteam.ps1 add-agent expert frontend` | Adds frontend expert (splits Expert row) |
+| `& .\.devteam\devteam.ps1 add-agent builder` | Adds builder-2 (splits Builder row) |
+| `& .\.devteam\devteam.ps1 add-agent research` | Adds research-2 (splits Research row) |
+| `& .\.devteam\devteam.ps1 msg builder-1 "task"` | Send task to agent (writes inbox + notifies pane) |
+| `& .\.devteam\devteam.ps1 msg validator "test X"` | Send validation task |
+| `& .\.devteam\devteam.ps1 notify architect "done"` | Notify without inbox write |
 
 ### When to Add Agents
 - **Researchers FIRST**: Spawn as many as needed for the research phase. Each should have a distinct research focus.
@@ -201,11 +214,11 @@ User: "Build an advanced scientific calculator web app"
 PHASE 1 - ASSESS RESEARCH:
 Architect thinks: "I need to research UI patterns, JS math libraries,
   and keyboard interaction. That's 2-3 distinct research areas."
-  -> Runs: devteam add-agent research   (now have research-1 and research-2)
+  -> Runs: & .\.devteam\devteam.ps1 add-agent research   (now have research-1 and research-2)
 
-PHASE 2 - ASSIGN RESEARCH (using devteam msg):
-  -> Runs: devteam msg research-1 "Find GitHub repos with scientific calculator UIs, responsive design"
-  -> Runs: devteam msg research-2 "Research JS math libraries, expression parsing, precision handling"
+PHASE 2 - ASSIGN RESEARCH:
+  -> Runs: & .\.devteam\devteam.ps1 msg research-1 "Find GitHub repos with scientific calculator UIs, responsive design"
+  -> Runs: & .\.devteam\devteam.ps1 msg research-2 "Research JS math libraries, expression parsing, precision handling"
 
 PHASE 3 - WAIT FOR FINDINGS:
 Research-1: Finds 5 repos, keyboard patterns, responsive grid layouts
@@ -215,18 +228,18 @@ Research-2: Finds math.js library, evaluatex parser, BigNumber.js
 
 PHASE 4 - SPAWN TEAM (based on findings):
 Architect reads findings, decides:
-  -> Runs: devteam add-agent expert frontend
-  -> Runs: devteam add-agent builder    (builder-2 for parallel work)
-  -> Runs: devteam msg expert-frontend "Design the UI: keyboard grid, responsive layout, history panel"
-  -> Runs: devteam msg builder-1 "Implement core math engine using math.js"
-  -> Runs: devteam msg builder-2 "Implement keyboard support and expression display"
+  -> Runs: & .\.devteam\devteam.ps1 add-agent expert frontend
+  -> Runs: & .\.devteam\devteam.ps1 add-agent builder    (builder-2 for parallel work)
+  -> Runs: & .\.devteam\devteam.ps1 msg expert-frontend "Design the UI: keyboard grid, responsive layout, history panel"
+  -> Runs: & .\.devteam\devteam.ps1 msg builder-1 "Implement core math engine using math.js"
+  -> Runs: & .\.devteam\devteam.ps1 msg builder-2 "Implement keyboard support and expression display"
 
 PHASE 5 - COORDINATE:
 Expert-frontend and builders communicate via scratchpad.md
 Architect reviews progress, resolves conflicts
 
 PHASE 6 - VALIDATE:
-  -> Runs: devteam msg validator "Test the calculator. See scratchpad for what was built."
+  -> Runs: & .\.devteam\devteam.ps1 msg validator "Test the calculator. See scratchpad for what was built."
 Validator tests, reports findings
 User: Receives working calculator
 ```
