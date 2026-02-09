@@ -2,162 +2,85 @@
 
 <#
 .SYNOPSIS
-    Factory Droid Development Team Orchestrator
+    Factory Droid Development Team Orchestrator v9
 .DESCRIPTION
     Creates a WezTerm layout with:
     - Left: Architect (top) + Validator (bottom)
     - Right: 3 horizontal rows for Expert, Builder, Researcher agents
-    - Agents can be added dynamically by splitting RIGHT within their row
+    - Each row grows horizontally (RIGHT splits) to add more agents
+.NOTES
+    Layout:
+      +----------+----+----+----+
+      |          | E1 | E2 | E3 |  Expert row (splits RIGHT)
+      |    A     +----+----+----+
+      |          | B1 | B2 | B3 |  Builder row (splits RIGHT)
+      +----------+----+----+----+
+      |    V     | R1 | R2 |    |  Research row (splits RIGHT)
+      +----------+----+----+----+
+
+    Usage:
+      devteam "Build a REST API"          Start team with task
+      devteam                             Start team, no task
+      devteam add-agent expert frontend   Add domain expert
+      devteam add-agent builder           Add builder
+      devteam add-agent research          Add researcher
+      devteam stop                        Kill session and archive
+      devteam status                      Show team status
+      devteam layout                      Show visual layout
 #>
 
 [CmdletBinding()]
 param(
-    [string]$Task = "",
-    [switch]$Debug
+    [Parameter(ValueFromRemainingArguments)]
+    [string[]]$Arguments
 )
 
 $ErrorActionPreference = "Stop"
-Set-StrictMode -Version Latest
 
-# Import helper module
+# ── Import helper module ──
+
 $HelperModule = Join-Path $PSScriptRoot "dev-team-helpers.psm1"
 if (Test-Path $HelperModule) {
     Import-Module $HelperModule -Force
 } else {
-    Write-Error "Helper module not found: $HelperModule"
+    Write-Error "Helper module not found at: $HelperModule"
     exit 1
 }
 
-# ── Handle subcommands ──
+# ── Parse arguments ──
 
-if ($Task -eq 'stop') {
-    Write-Host "Stopping dev team session..." -ForegroundColor Yellow
-    # TODO: Implement stop logic
-    exit 0
-}
+$Command = if ($Arguments.Count -gt 0) { $Arguments[0] } else { "" }
+$Arg1 = if ($Arguments.Count -gt 1) { $Arguments[1] } else { "" }
+$Arg2 = if ($Arguments.Count -gt 2) { $Arguments[2] } else { "" }
 
-if ($Task -eq 'status') {
-    Write-Host "Dev team status..." -ForegroundColor Cyan
-    $sessionFile = Join-Path (Get-Location).Path ".devteam/session.json"
-    if (Test-Path $sessionFile) {
-        Get-Content $sessionFile -Raw | ConvertFrom-Json | Format-List
-    } else {
-        Write-Host "No active session found." -ForegroundColor Yellow
+# ── Resolve paths ──
+
+$ProjectDir = (Get-Location).Path
+$SessionDir = Join-Path $ProjectDir ".devteam"
+$SessionFile = Join-Path $SessionDir "session.json"
+
+# ── Route subcommands ──
+
+switch ($Command) {
+    'stop' {
+        Invoke-StopSession -SessionDir $SessionDir -SessionFile $SessionFile
+        exit 0
     }
-    exit 0
-}
-
-if ($Task -eq 'layout') {
-    Write-Host "Dev team layout..." -ForegroundColor Cyan
-    Write-Host "  +----------+----+----+----+" -ForegroundColor Yellow
-    Write-Host "  |          | E1 | E2 | E3 |  Expert row" -ForegroundColor Yellow
-    Write-Host "  |    A     +----+----+----+" -ForegroundColor Yellow
-    Write-Host "  |          | B1 | B2 | B3 |  Builder row" -ForegroundColor Yellow
-    Write-Host "  +----------+----+----+----+" -ForegroundColor Yellow
-    Write-Host "  |    V     | R1 | R2 |    |  Research row" -ForegroundColor Yellow
-    Write-Host "  +----------+----+----+----+" -ForegroundColor Yellow
-    exit 0
-}
-
-# ── Main Execution ──
-
-Write-Host "╔════════════════════════════════════════════╗" -ForegroundColor Magenta
-Write-Host "║   Factory Droid Development Team v8.0     ║" -ForegroundColor Magenta
-Write-Host "╚════════════════════════════════════════════╝" -ForegroundColor Magenta
-Write-Host ""
-
-try {
-    # Use helper module to create layout
-    $layout = Initialize-DevTeamLayout -Debug:$Debug
-    
-    Write-Host ""
-    Write-Host "Spawning initial agents..." -ForegroundColor Cyan
-    
-    # Get session directory for prompts
-    $sessionDir = (Get-Location).Path + "/.devteam"
-    if (-not (Test-Path $sessionDir)) {
-        New-Item -ItemType Directory -Path $sessionDir -Force | Out-Null
+    'status' {
+        Show-TeamStatus -SessionFile $SessionFile
+        exit 0
     }
-    
-    $sessionDirForPrompt = $sessionDir.Replace('\', '/')
-    
-    # Architect prompt
-    $architectPrompt = if ($Task) {
-        "IMPORTANT: You are the ARCHITECT (Team Lead). Session: $sessionDirForPrompt/. Team task: $Task. CRITICAL WORKFLOW: Step 1 - Use Research agent to find examples and best practices. Step 2 - Based on findings, spawn appropriate Experts and Builders. Step 3 - Coordinate implementation. Step 4 - Send to Validator."
-    } else {
-        "IMPORTANT: You are the ARCHITECT (Team Lead). Session: $sessionDirForPrompt/. Read scratchpad and inbox, announce readiness."
+    'layout' {
+        Show-TeamLayout -SessionFile $SessionFile
+        exit 0
     }
-    
-    Start-AgentInPane -PaneId $layout.Architect -AgentType "architect" -Prompt $architectPrompt
-    Start-Sleep -Milliseconds 500
-    
-    # Validator prompt
-    $validatorPrompt = "IMPORTANT: You are the VALIDATOR (QA/testing). Session: $sessionDirForPrompt/. Read scratchpad and inbox, announce readiness."
-    Start-AgentInPane -PaneId $layout.Validator -AgentType "validator" -Prompt $validatorPrompt
-    Start-Sleep -Milliseconds 500
-    
-    # Expert prompt
-    $expertPrompt = "IMPORTANT: You are the EXPERT (domain knowledge). Session: $sessionDirForPrompt/. Read scratchpad and inbox, announce readiness."
-    Start-AgentInPane -PaneId $layout.ExpertRow -AgentType "expert" -Prompt $expertPrompt -Name "expert-1"
-    Start-Sleep -Milliseconds 500
-    
-    # Builder prompt
-    $builderPrompt = "IMPORTANT: You are the BUILDER (implementation). Session: $sessionDirForPrompt/. Read scratchpad and inbox, announce readiness."
-    Start-AgentInPane -PaneId $layout.BuilderRow -AgentType "builder" -Prompt $builderPrompt -Name "builder-1"
-    Start-Sleep -Milliseconds 500
-    
-    # Researcher prompt
-    $researcherPrompt = "IMPORTANT: You are the RESEARCHER (code research). Session: $sessionDirForPrompt/. **CRITICAL:** You ONLY search the local directory first (never go outside it). If local files don't have answers, then do web research including GitHub repositories, documentation, and source code examples. Read scratchpad and inbox, announce readiness."
-    Start-AgentInPane -PaneId $layout.ResearcherRow -AgentType "researcher" -Prompt $researcherPrompt -Name "researcher-1"
-    
-    Write-Host ""
-    Write-Host "✅ Development team is ready!" -ForegroundColor Green
-    Write-Host ""
-    Write-Host "💡 Layout:" -ForegroundColor Yellow
-    Write-Host "   Left: Architect (top) | Validator (bottom)" -ForegroundColor Gray
-    Write-Host "   Right: Expert / Builder / Researcher rows - grow right" -ForegroundColor Gray
-    Write-Host ""
-    Write-Host "📝 To add more agents, use:" -ForegroundColor Yellow
-    Write-Host "   Add-Agent -Type Expert -Name 'frontend-expert'" -ForegroundColor Gray
-    Write-Host "   Add-Agent -Type Builder -Name 'python-builder'" -ForegroundColor Gray
-    Write-Host "   Add-Agent -Type Researcher -Name 'api-researcher'" -ForegroundColor Gray
-    Write-Host ""
-    
-    # Store layout globally for Add-Agent function
-    $global:DevTeamLayout = $layout
-    $global:LastExpertPane = $layout.ExpertRow
-    $global:LastBuilderPane = $layout.BuilderRow
-    $global:LastResearcherPane = $layout.ResearcherRow
-    
-    # Save session metadata
-    $session = @{
-        started = (Get-Date -Format "yyyy-MM-ddTHH:mm:ss")
-        task = $Task
-        project = (Get-Location).Path
-        pane_ids = @($layout.Architect, $layout.Validator, $layout.ExpertRow, $layout.BuilderRow, $layout.ResearcherRow)
-        agents = @{
-            architect = $layout.Architect
-            validator = $layout.Validator
-            'expert-1' = $layout.ExpertRow
-            'builder-1' = $layout.BuilderRow
-            'researcher-1' = $layout.ResearcherRow
-        }
-        pane_layout = @{
-            left = @{
-                architect = $layout.Architect
-                validator = $layout.Validator
-            }
-            rows = @{
-                expert = @{ pane_id = $layout.ExpertRow; agents = @('expert-1') }
-                builder = @{ pane_id = $layout.BuilderRow; agents = @('builder-1') }
-                research = @{ pane_id = $layout.ResearcherRow; agents = @('researcher-1') }
-            }
-        }
+    'add-agent' {
+        Invoke-AddAgent -AgentType $Arg1 -Domain $Arg2 -SessionDir $SessionDir -SessionFile $SessionFile -ProjectDir $ProjectDir
+        exit 0
     }
-    
-    $session | ConvertTo-Json -Depth 10 | Set-Content (Join-Path $sessionDir "session.json") -Encoding UTF8
-    
-} catch {
-    Write-Error "Failed to start dev team: $_"
-    exit 1
+    default {
+        # $Command is the task string (or empty)
+        $Task = ($Arguments -join ' ')
+        Invoke-StartTeam -Task $Task -ProjectDir $ProjectDir -SessionDir $SessionDir -SessionFile $SessionFile
+    }
 }
