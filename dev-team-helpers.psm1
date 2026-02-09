@@ -713,6 +713,312 @@ function Invoke-StartTeam {
 }
 
 # ════════════════════════════════════════════
+# Initialize Fabric Session Files
+# ════════════════════════════════════════════
+
+function Initialize-FabricSessionFiles {
+    param(
+        [string]$SessionDir,
+        [string]$ProjectDir,
+        [string]$Task
+    )
+
+    New-Item -ItemType Directory -Path $SessionDir -Force | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $SessionDir "archive") -Force | Out-Null
+
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $taskLabel = if ($Task) { $Task } else { "Awaiting task assignment" }
+
+    # Fabric-specific scratchpad
+    $scratchpad = @"
+# Fabric Team Scratchpad
+## Task: $taskLabel
+## Project: $ProjectDir
+## Started: $timestamp
+## Jira Ticket: [pending]
+
+---
+
+### Jira Ticket Details
+<!-- Architect writes ticket info here after pulling from Jira -->
+
+### Architecture Decisions
+<!-- Architect writes approach after consulting experts -->
+
+### PySpark Expert Notes
+<!-- PySpark optimization advice, F8 configs -->
+
+### Big Data Expert Notes
+<!-- Schema design, medallion layer, data patterns -->
+
+### Fabric Deployment Log
+<!-- Fabric Expert logs each upload/run/result here -->
+
+### Builder Implementation Notes
+<!-- Builder documents notebook structure, local test results -->
+"@
+    Set-Content -Path (Join-Path $SessionDir "scratchpad.md") -Value $scratchpad -Encoding UTF8
+
+    # Create inboxes for Fabric team agents
+    $agents = @('architect', 'fabric-expert', 'pyspark-expert-1', 'bigdata-expert-1', 'builder-1')
+    foreach ($agent in $agents) {
+        $baseName = $agent -replace '-\d+$', ''
+        $displayName = (Get-Culture).TextInfo.ToTitleCase($baseName)
+        $inbox = @"
+# Inbox: $displayName ($agent)
+## Pending Tasks
+
+## Completed
+"@
+        Set-Content -Path (Join-Path $SessionDir "inbox-$agent.md") -Value $inbox -Encoding UTF8
+    }
+
+    # Create devteam proxy script (same as standard team)
+    $proxyScript = @'
+# devteam proxy - callable from droid EXECUTE tool
+# Usage: & .\.devteam\devteam.ps1 msg builder-1 "Your task here"
+#        & .\.devteam\devteam.ps1 add-agent expert frontend
+param([Parameter(ValueFromRemainingArguments)][string[]]$Params)
+
+$scriptDir = $PSScriptRoot
+$cmd = if ($Params.Count -gt 0) { $Params[0] } else { '' }
+$arg1 = if ($Params.Count -gt 1) { $Params[1] } else { '' }
+$rest = if ($Params.Count -gt 2) { ($Params[2..($Params.Count - 1)] -join ' ') } else { '' }
+
+switch ($cmd) {
+    'msg' {
+        if (-not $arg1 -or -not $rest) {
+            Write-Host "Usage: & .\.devteam\devteam.ps1 msg <agent-name> <message>"
+            exit 1
+        }
+        $sessionFile = Join-Path $scriptDir 'session.json'
+        if (-not (Test-Path $sessionFile)) { Write-Error "No session.json found"; exit 1 }
+        $session = Get-Content $sessionFile -Raw | ConvertFrom-Json
+        $paneId = $session.agents.$arg1
+        if (-not $paneId) {
+            Write-Host "Agent '$arg1' not found. Available agents:"
+            foreach ($p in $session.agents.PSObject.Properties) { Write-Host "  - $($p.Name) (pane $($p.Value))" }
+            exit 1
+        }
+        $inboxPath = Join-Path $scriptDir "inbox-$arg1.md"
+        if (-not (Test-Path $inboxPath)) {
+            Set-Content $inboxPath "# Inbox: $arg1`n## Pending Tasks`n`n## Completed" -Encoding UTF8
+        }
+        $ts = Get-Date -Format 'HH:mm:ss'
+        $content = Get-Content $inboxPath -Raw
+        $content = $content -replace '(## Pending Tasks\r?\n)', "`$1- [ ] [$ts from Architect] $rest`n"
+        Set-Content $inboxPath $content -Encoding UTF8
+        "New task in your inbox from Architect. Read inbox-$arg1.md now." | wezterm cli send-text --pane-id $paneId --no-paste
+        Start-Sleep -Milliseconds 200
+        "`r`n" | wezterm cli send-text --pane-id $paneId --no-paste
+        Write-Host "Message sent to $arg1 (pane $paneId): $rest"
+    }
+    'add-agent' {
+        $orchPath = Join-Path $env:USERPROFILE '.factory\scripts\dev-team-orchestrator.ps1'
+        if (Test-Path $orchPath) {
+            & $orchPath @Params
+        } else {
+            Write-Error "Orchestrator not found at $orchPath"
+        }
+    }
+    'notify' {
+        if (-not $arg1 -or -not $rest) {
+            Write-Host "Usage: & .\.devteam\devteam.ps1 notify <agent-name> <message>"
+            exit 1
+        }
+        $sessionFile = Join-Path $scriptDir 'session.json'
+        $session = Get-Content $sessionFile -Raw | ConvertFrom-Json
+        $paneId = $session.agents.$arg1
+        if (-not $paneId) { Write-Error "Agent '$arg1' not found"; exit 1 }
+        "$rest" | wezterm cli send-text --pane-id $paneId --no-paste
+        Start-Sleep -Milliseconds 200
+        "`r`n" | wezterm cli send-text --pane-id $paneId --no-paste
+        Write-Host "Notified $arg1 (pane $paneId)"
+    }
+    default {
+        $orchPath = Join-Path $env:USERPROFILE '.factory\scripts\dev-team-orchestrator.ps1'
+        if (Test-Path $orchPath) {
+            & $orchPath @Params
+        } else {
+            Write-Error "Orchestrator not found at $orchPath"
+        }
+    }
+}
+'@
+    Set-Content -Path (Join-Path $SessionDir "devteam.ps1") -Value $proxyScript -Encoding UTF8
+
+    Write-TeamLog "Fabric session files created in $SessionDir" -Level Success
+}
+
+# ════════════════════════════════════════════
+# Start Fabric Team
+# ════════════════════════════════════════════
+
+function Invoke-StartFabricTeam {
+    param(
+        [string]$Task,
+        [string]$ProjectDir,
+        [string]$SessionDir,
+        [string]$SessionFile
+    )
+
+    Write-Host ""
+    Write-Host "+==========================================+" -ForegroundColor Magenta
+    Write-Host "|   Factory Droid Fabric Team v1.0         |" -ForegroundColor Magenta
+    Write-Host "+==========================================+" -ForegroundColor Magenta
+    Write-Host ""
+
+    # Check for WezTerm
+    $basePaneId = $env:WEZTERM_PANE
+    if (-not $basePaneId) {
+        Write-TeamLog "Not running inside WezTerm. Please start WezTerm first." -Level Error
+        exit 1
+    }
+
+    # Stop existing session if any
+    if (Test-Path $SessionFile) {
+        Write-TeamLog "Found existing session. Archiving..." -Level Warning
+        Invoke-StopSession -SessionDir $SessionDir -SessionFile $SessionFile
+        Start-Sleep -Milliseconds 300
+    }
+
+    # Create Fabric-specific session files
+    Initialize-FabricSessionFiles -SessionDir $SessionDir -ProjectDir $ProjectDir -Task $Task
+
+    $sessionDirForPrompt = $SessionDir.Replace('\', '/')
+    $paneMap = @{}
+    $rows = @{
+        expert   = @{ agents = @() }
+        builder  = @{ agents = @() }
+    }
+
+    # ═══════════════════════════════════════════════════════════════
+    # LAYOUT:
+    #   +----------+------------------+
+    #   |          | PySpark Expert   |  (row grows RIGHT)
+    #   | Architect+------------------+
+    #   |          | BigData Expert   |  (row grows RIGHT)
+    #   +----------+------------------+
+    #   | Fabric   | Builder-1        |  (row grows RIGHT)
+    #   | Expert   |                  |
+    #   +----------+------------------+
+    # ═══════════════════════════════════════════════════════════════
+
+    # ── STEP 1: Architect is the current pane ──
+    Write-TeamLog "1/5 Architect -> current pane $basePaneId" -Level Info
+    $paneMap['architect'] = $basePaneId
+
+    # ── STEP 2: Split RIGHT for the right column (65%) ──
+    Write-TeamLog "2/5 Creating right column..." -Level Info
+    $rightSideId = Invoke-WezTermSplit -PaneId $basePaneId -Direction "right" -Percent 65 -Cwd $ProjectDir
+    Start-Sleep -Milliseconds 400
+
+    # ── STEP 3: Split LEFT column BOTTOM for Fabric Expert (bottom 30%) ──
+    Write-TeamLog "3/5 Splitting left column for Fabric Expert..." -Level Info
+    $fabricExpertId = Invoke-WezTermSplit -PaneId $basePaneId -Direction "bottom" -Percent 30 -Cwd $ProjectDir
+    Start-Sleep -Milliseconds 400
+
+    $paneMap['fabric-expert'] = $fabricExpertId
+
+    # ── STEP 4: Split RIGHT side into 3 rows ──
+    Write-TeamLog "4/5 Creating PySpark Expert, BigData Expert, Builder rows..." -Level Info
+
+    # rightSideId becomes PySpark Expert row (top 33%)
+    $bigdataBuilderPaneId = Invoke-WezTermSplit -PaneId $rightSideId -Direction "bottom" -Percent 67 -Cwd $ProjectDir
+    Start-Sleep -Milliseconds 400
+
+    # bigdataBuilderPaneId splits into BigData Expert (top 50%) and Builder (bottom 50%)
+    $builderPaneId = Invoke-WezTermSplit -PaneId $bigdataBuilderPaneId -Direction "bottom" -Percent 50 -Cwd $ProjectDir
+    Start-Sleep -Milliseconds 400
+
+    $pysparkPaneId  = $rightSideId
+    $bigdataPaneId  = $bigdataBuilderPaneId
+
+    # Track in rows
+    $rows['expert']  = @{ agents = @(
+        @{ name = "pyspark-expert-1"; pane_id = $pysparkPaneId; domain = "pyspark" },
+        @{ name = "bigdata-expert-1"; pane_id = $bigdataPaneId; domain = "bigdata" }
+    ) }
+    $rows['builder'] = @{ agents = @(@{ name = "builder-1"; pane_id = $builderPaneId; domain = "" }) }
+
+    $paneMap['pyspark-expert-1'] = $pysparkPaneId
+    $paneMap['bigdata-expert-1'] = $bigdataPaneId
+    $paneMap['builder-1']        = $builderPaneId
+
+    # ── STEP 5: Spawn agents ──
+    Write-TeamLog "5/5 Spawning agents..." -Level Info
+
+    $notifyCmd = "& .\.devteam\devteam.ps1 notify architect"
+    $baseCtx = "You are part of a Fabric data team in $ProjectDir. Session files: $sessionDirForPrompt/. Read scratchpad.md and your inbox FIRST. CRITICAL: use '& .\.devteam\devteam.ps1 msg AGENT message' for tasks and '& .\.devteam\devteam.ps1 notify AGENT message' for notifications. Do NOT use bare 'devteam'. Pane IDs are in session.json."
+
+    # Architect prompt
+    $architectPrompt = if ($Task) {
+        "$baseCtx You are the ARCHITECT (Fabric Team Lead). Task: $Task. CRITICAL: use the proxy script for ALL commands. To assign tasks: & .\.devteam\devteam.ps1 msg AGENT-NAME message. To spawn agents: & .\.devteam\devteam.ps1 add-agent TYPE. WORKFLOW: 1-If task is a ticket number (3 digits = BI-XXX), pull from Jira using atlassian___search and atlassian___fetch. 2-Write ticket details to scratchpad. 3-Ask user clarifying questions. 4-Consult pyspark-expert-1 and bigdata-expert-1 for approach. 5-Write architecture decisions to scratchpad. 6-Assign builder-1 to create notebook. 7-When builder reports ready, msg fabric-expert to deploy. 8-If fabric-expert reports errors, coordinate fix cycle. 9-Report success to user when clean logs achieved. NEVER touch Fabric directly. NEVER write notebooks. Your team: fabric-expert (deployment), pyspark-expert-1 (code quality), bigdata-expert-1 (data architecture), builder-1 (notebook creation)."
+    } else {
+        "$baseCtx You are the ARCHITECT (Fabric Team Lead). No task yet. Read scratchpad and inbox, announce readiness. When you get a task: 1-Parse ticket numbers (3 digits = BI-XXX), 2-Pull from Jira, 3-Consult experts, 4-Assign builder, 5-Trigger fabric-expert for deployment. Use '& .\.devteam\devteam.ps1 msg AGENT message' for all assignments."
+    }
+
+    # Fabric Expert prompt
+    $fabricExpertPrompt = "$baseCtx You are the FABRIC EXPERT. You own the full Fabric deployment cycle: upload notebooks (with version naming _v1, _v2...), attach lakehouses, run jobs, poll every 60s, download driver logs. Use fabric___* MCP tools (triple underscores). When deployment fails, share errors with ALL experts and builder, wait for fix, re-deploy. Clean up old versions after success. NEVER overwrite notebooks. NEVER retry run_on_demand_job. Read inbox at $sessionDirForPrompt/inbox-fabric-expert.md now."
+
+    # PySpark Expert prompt
+    $pysparkExpertPrompt = "$baseCtx You are pyspark-expert-1, a PYSPARK EXPERT. Advise on PySpark patterns, F8 SKU optimization (16 partitions, AQE, broadcast joins), and error diagnosis. When consulted, write to scratchpad PySpark Expert Notes. When error logs arrive, diagnose PySpark issues and advise on fixes. Use memory___search_nodes to check for known patterns. Report back with: $notifyCmd 'PySpark analysis complete'. Read inbox at $sessionDirForPrompt/inbox-pyspark-expert-1.md now."
+
+    # Big Data Expert prompt
+    $bigdataExpertPrompt = "$baseCtx You are bigdata-expert-1, a BIG DATA and PIPELINES EXPERT. Advise on medallion architecture (Bronze/Silver/Gold), CDF patterns, Stellantis DMS sources (Auto/Pinnacle/Key/Units), composite keys, mapping files. Write to scratchpad Big Data Expert Notes. Diagnose data-specific errors (join explosions, column mismatches, VOID types). Report back with: $notifyCmd 'Big Data analysis complete'. Read inbox at $sessionDirForPrompt/inbox-bigdata-expert-1.md now."
+
+    # Builder prompt
+    $builderPrompt = "$baseCtx You are builder-1, a FABRIC BUILDER. Create PySpark notebooks using notebook___* MCP tools. Test locally with pyspark_execute_code(). Follow architecture from scratchpad (PySpark Expert Notes + Big Data Expert Notes). When done, notify Architect. When Fabric Expert reports errors, fix the notebook and re-test. Report back with: $notifyCmd 'Build complete. Ready for Fabric deployment.' Read inbox at $sessionDirForPrompt/inbox-builder-1.md now."
+
+    # Send droid commands to panes (Fabric Expert, PySpark Expert, BigData Expert, Builder)
+    Send-ToPane -PaneId $fabricExpertId -Text "droid fabric-expert '$($fabricExpertPrompt -replace "'", "''")'"
+    Start-Sleep -Milliseconds 300
+    Send-ToPane -PaneId $pysparkPaneId  -Text "droid pyspark-expert '$($pysparkExpertPrompt -replace "'", "''")'"
+    Start-Sleep -Milliseconds 300
+    Send-ToPane -PaneId $bigdataPaneId  -Text "droid bigdata-expert '$($bigdataExpertPrompt -replace "'", "''")'"
+    Start-Sleep -Milliseconds 300
+    Send-ToPane -PaneId $builderPaneId  -Text "droid fabric-builder '$($builderPrompt -replace "'", "''")'"
+    Start-Sleep -Milliseconds 300
+
+    # Save session
+    Save-Session -SessionFile $SessionFile -Task $Task -ProjectDir $ProjectDir -SessionDir $SessionDir -PaneMap $paneMap -Rows $rows
+
+    # Print summary
+    Write-Host ""
+    Write-TeamLog "Fabric team is ready!" -Level Success
+    Write-Host ""
+    Write-Host "LAYOUT:" -ForegroundColor Yellow
+    Write-Host "  +----------+------------------------------+" -ForegroundColor Yellow
+    Write-Host "  |          | PySpark Expert (pane $pysparkPaneId)  |" -ForegroundColor Yellow
+    Write-Host "  | Architect+------------------------------+" -ForegroundColor Yellow
+    Write-Host "  | (pane $basePaneId) | BigData Expert (pane $bigdataPaneId)  |" -ForegroundColor Yellow
+    Write-Host "  +----------+------------------------------+" -ForegroundColor Yellow
+    Write-Host "  | Fabric   | Builder-1      (pane $builderPaneId)  |" -ForegroundColor Yellow
+    Write-Host "  | Expert   |                              |" -ForegroundColor Yellow
+    Write-Host "  | (pane $fabricExpertId) |                              |" -ForegroundColor Yellow
+    Write-Host "  +----------+------------------------------+" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "WORKFLOW:" -ForegroundColor Yellow
+    Write-Host "  You -> Architect -> Jira -> Consult Experts -> Builder -> Fabric Expert -> Deploy" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "COMMANDS:" -ForegroundColor Yellow
+    Write-Host "  devteam msg <agent> `"message`"        Send task to an agent" -ForegroundColor Gray
+    Write-Host "  devteam task `"message`"                Send task to Architect" -ForegroundColor Gray
+    Write-Host "  devteam add-agent expert [domain]    Add another expert" -ForegroundColor Gray
+    Write-Host "  devteam add-agent builder             Add another builder" -ForegroundColor Gray
+    Write-Host "  devteam status                        Show team status" -ForegroundColor Gray
+    Write-Host "  devteam stop                          Stop and archive session" -ForegroundColor Gray
+    Write-Host ""
+
+    # Now start the Architect droid in the CURRENT pane
+    Write-Host "Starting Fabric Architect agent..." -ForegroundColor Cyan
+    Write-Host ""
+
+    $escapedArchPrompt = $architectPrompt -replace "'", "''"
+    droid fabric-architect "$escapedArchPrompt"
+}
+
+# ════════════════════════════════════════════
 # Exports
 # ════════════════════════════════════════════
 
@@ -721,6 +1027,7 @@ Export-ModuleMember -Function @(
     'Invoke-WezTermSplit',
     'Send-ToPane',
     'Initialize-SessionFiles',
+    'Initialize-FabricSessionFiles',
     'Save-Session',
     'Read-Session',
     'Update-Session',
@@ -729,5 +1036,6 @@ Export-ModuleMember -Function @(
     'Show-TeamLayout',
     'Invoke-SendMessage',
     'Invoke-AddAgent',
-    'Invoke-StartTeam'
+    'Invoke-StartTeam',
+    'Invoke-StartFabricTeam'
 )

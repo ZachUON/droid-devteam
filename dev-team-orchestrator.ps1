@@ -2,14 +2,19 @@
 
 <#
 .SYNOPSIS
-    Factory Droid Development Team Orchestrator v9
+    Factory Droid Development Team Orchestrator v9.1
 .DESCRIPTION
     Creates a WezTerm layout with:
     - Left: Architect (top) + Validator (bottom)
     - Right: 3 horizontal rows for Expert, Builder, Researcher agents
     - Each row grows horizontally (RIGHT splits) to add more agents
+
+    Fabric Mode (--fabric):
+    - Left: Architect (top) + Fabric Expert (bottom)
+    - Right: PySpark Expert, BigData Expert, Builder rows
+    - Jira integration, Fabric MCP deployment, autonomous error recovery
 .NOTES
-    Layout:
+    Standard Layout:
       +----------+----+----+----+
       |          | E1 | E2 | E3 |  Expert row (splits RIGHT)
       |    A     +----+----+----+
@@ -18,8 +23,20 @@
       |    V     | R1 | R2 |    |  Research row (splits RIGHT)
       +----------+----+----+----+
 
+    Fabric Layout:
+      +----------+------------------+
+      |          | PySpark Expert   |
+      | Architect+------------------+
+      |          | BigData Expert   |
+      +----------+------------------+
+      | Fabric   | Builder-1        |
+      | Expert   |                  |
+      +----------+------------------+
+
     Usage:
       devteam "Build a REST API"          Start team with task
+      devteam --fabric "ticket 139"       Start Fabric team with Jira ticket
+      devteam --fabric                    Start Fabric team, no task
       devteam                             Start team, no task
       devteam add-agent expert frontend   Add domain expert
       devteam add-agent builder           Add builder
@@ -105,6 +122,12 @@ switch ($Command) {
         }
         Invoke-SendMessage -AgentName "architect" -Message $taskMsg -SessionDir $SessionDir -SessionFile $SessionFile -CallerName "user"
         exit 0
+    }
+    '--fabric' {
+        # Fabric team mode: devteam --fabric "ticket 139" or devteam --fabric "BI-139"
+        $fabricTask = if ($Arguments.Count -gt 1) { ($Arguments[1..($Arguments.Count - 1)] -join ' ') } else { "" }
+        $fabricTask = $fabricTask -replace '^\s*-Task\s+', ''
+        Invoke-StartFabricTeam -Task $fabricTask -ProjectDir $ProjectDir -SessionDir $SessionDir -SessionFile $SessionFile
     }
     default {
         # $Command is the task string (or empty)

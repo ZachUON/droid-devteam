@@ -58,7 +58,7 @@ Write-Host "[3/4] Installing droid definitions..." -ForegroundColor Yellow
 $DroidDest = "$env:USERPROFILE\.factory\droids"
 New-Item -ItemType Directory -Path $DroidDest -Force | Out-Null
 
-foreach ($droid in @('architect', 'builder', 'validator', 'expert', 'research')) {
+foreach ($droid in @('architect', 'builder', 'validator', 'expert', 'research', 'fabric-architect', 'fabric-expert', 'fabric-builder', 'pyspark-expert', 'bigdata-expert')) {
     $src = "$RepoRoot\droids\$droid.md"
     $dst = "$DroidDest\$droid.md"
     if (Test-Path $dst) {
@@ -112,6 +112,8 @@ Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "Restart your terminal, then:" -ForegroundColor White
 Write-Host '  devteam "Build a REST API"             # spawn team with a task' -ForegroundColor DarkGray
+Write-Host '  devteam --fabric "ticket 139"           # spawn Fabric team with Jira ticket' -ForegroundColor DarkGray
+Write-Host '  devteam --fabric                        # spawn Fabric team, assign task later' -ForegroundColor DarkGray
 Write-Host '  devteam                                 # spawn team, assign task later' -ForegroundColor DarkGray
 Write-Host '  devteam add-agent expert frontend       # add a domain expert' -ForegroundColor DarkGray
 Write-Host '  devteam add-agent builder               # add a builder' -ForegroundColor DarkGray
