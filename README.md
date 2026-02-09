@@ -31,15 +31,20 @@ Spawns 4 coordinated AI agents in a WezTerm split layout, each with a specialize
 3. Agents read their inboxes, write to the scratchpad, and notify each other via `wezterm cli send-text`
 4. Session files persist in your project directory as a form of session memory
 
+## Platform
+
+**Windows only.** This project uses PowerShell and WezTerm CLI on Windows. Linux/macOS support is not currently planned, but PRs are welcome.
+
 ## Prerequisites
 
+- Windows 10/11
 - [Factory Droid CLI](https://docs.factory.ai/cli/getting-started/quickstart) installed and authenticated
 - [WezTerm](https://wezfurlong.org/wezterm/install) terminal emulator
-- PowerShell 5.1+ (Windows) or PowerShell 7+ (cross-platform)
+- PowerShell 5.1+
 
 ## Installation
 
-### One-liner (after repo is on GitHub)
+### One-liner
 
 ```powershell
 irm https://raw.githubusercontent.com/ZachUON/droid-devteam/main/install.ps1 | iex
