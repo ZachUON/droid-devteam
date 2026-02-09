@@ -698,32 +698,19 @@ function Invoke-DevTeam {
 
     Start-Sleep -Milliseconds 300
 
-    # Split Architect horizontally first to make room for Validator below
-    Write-Host "[2/5] Splitting Architect pane (creating space for Validator below)..." -ForegroundColor Cyan
-    $splitArgs = @('cli', 'split-pane', '--bottom', '--percent', '75', '--pane-id', "$currentPaneId")
-    & $WezTermExe $splitArgs 2>&1 | Out-Null
-    Start-Sleep -Milliseconds 500
-
-    # Get the new bottom pane (will be Validator) - but we don't spawn in it yet
-    $newPanes = & $WezTermExe cli list --format json | ConvertFrom-Json
-    $bottomPane = $newPanes | Where-Object { "$($_.pane_id)" -notin $knownPanes }
-    $bottomPaneId = "$($bottomPane.pane_id)"
-    $knownPanes += "$bottomPaneId"
-
-    # Now split Architect right to create the right column
-    Write-Host "[3/5] Creating right column (Expert/Builder/Research)..." -ForegroundColor Cyan
+    # Split Architect right to create right column
+    Write-Host "[2/5] Creating right column..." -ForegroundColor Cyan
     $splitArgs = @('cli', 'split-pane', '--right', '--percent', '50', '--pane-id', "$currentPaneId")
     & $WezTermExe $splitArgs 2>&1 | Out-Null
     Start-Sleep -Milliseconds 500
 
-    # Get the right pane (first one in right column)
     $newPanes = & $WezTermExe cli list --format json | ConvertFrom-Json
     $rightPane = $newPanes | Where-Object { "$($_.pane_id)" -notin $knownPanes }
     $rightPaneId = "$($rightPane.pane_id)"
     $knownPanes += "$rightPaneId"
 
-    # Now spawn Expert in the right pane
-    Write-Host "[4/5] Spawning Expert (top-right)..." -ForegroundColor Cyan
+    # Spawn Expert in right pane
+    Write-Host "[3/5] Spawning Expert (top-right)..." -ForegroundColor Cyan
     $escapedExpertPrompt = $expertPrompt.Replace("'", "''")
     $spawnCmd = "droid specialist '$escapedExpertPrompt'"
     $null = & $WezTermExe cli send-text --pane-id $rightPaneId $spawnCmd 2>&1
@@ -734,8 +721,8 @@ function Invoke-DevTeam {
 
     Start-Sleep -Milliseconds 300
 
-    # Split the right pane for Builder
-    Write-Host "[5/5] Spawning Builder (middle-right)..." -ForegroundColor Cyan
+    # Split right pane for Builder
+    Write-Host "[4/5] Spawning Builder (middle-right)..." -ForegroundColor Cyan
     $escapedBuilderPrompt = $builderPrompt.Replace("'", "''")
     $splitArgs = @('cli', 'split-pane', '--bottom', '--percent', '50', '--pane-id', $rightPaneId, '--cwd', $ProjectDir, '--', 'powershell.exe', '-NoExit', '-Command', "droid builder '$escapedBuilderPrompt'")
     & $WezTermExe $splitArgs 2>&1 | Out-Null
@@ -749,10 +736,25 @@ function Invoke-DevTeam {
 
     Start-Sleep -Milliseconds 300
 
-    # Split Builder for Research
-    Write-Host "[6/6] Spawning Research (bottom-right)..." -ForegroundColor Cyan
+    # Split Builder for Validator
+    Write-Host "[5/5] Spawning Validator (bottom-right-1)..." -ForegroundColor Cyan
+    $escapedValidatorPrompt = $validatorPrompt.Replace("'", "''")
+    $splitArgs = @('cli', 'split-pane', '--bottom', '--percent', '50', '--pane-id', $builderPaneId, '--cwd', $ProjectDir, '--', 'powershell.exe', '-NoExit', '-Command', "droid validator '$escapedValidatorPrompt'")
+    & $WezTermExe $splitArgs 2>&1 | Out-Null
+    Start-Sleep -Milliseconds 500
+
+    $validatorPaneId = Get-NewPaneId -KnownPaneIds $knownPanes
+    if (-not $validatorPaneId) { Write-Error "Failed to spawn Validator. Aborting."; exit 1 }
+    $knownPanes += "$validatorPaneId"
+    $paneMap['validator-1'] = $validatorPaneId
+    Write-Host "      Pane ID: $validatorPaneId - SUCCESS" -ForegroundColor Green
+
+    Start-Sleep -Milliseconds 300
+
+    # Split Validator for Research
+    Write-Host "[6/6] Spawning Research (bottom-right-2)..." -ForegroundColor Cyan
     $escapedResearchPrompt = $researchPrompt.Replace("'", "''")
-    $splitArgs = @('cli', 'split-pane', '--bottom', '--percent', '50', '--pane-id', $builderPaneId, '--cwd', $ProjectDir, '--', 'powershell.exe', '-NoExit', '-Command', "droid specialist '$escapedResearchPrompt'")
+    $splitArgs = @('cli', 'split-pane', '--bottom', '--percent', '50', '--pane-id', $validatorPaneId, '--cwd', $ProjectDir, '--', 'powershell.exe', '-NoExit', '-Command', "droid specialist '$escapedResearchPrompt'")
     & $WezTermExe $splitArgs 2>&1 | Out-Null
     Start-Sleep -Milliseconds 500
 
@@ -761,17 +763,6 @@ function Invoke-DevTeam {
     $knownPanes += "$researchPaneId"
     $paneMap['research-1'] = $researchPaneId
     Write-Host "      Pane ID: $researchPaneId - SUCCESS" -ForegroundColor Green
-
-    # Finally spawn Validator in the bottom-left pane
-    Start-Sleep -Milliseconds 300
-    Write-Host "[7/7] Spawning Validator (bottom-left)..." -ForegroundColor Cyan
-    $escapedValidatorPrompt = $validatorPrompt.Replace("'", "''")
-    $spawnCmd = "droid validator '$escapedValidatorPrompt'"
-    $null = & $WezTermExe cli send-text --pane-id $bottomPaneId $spawnCmd 2>&1
-    Start-Sleep -Milliseconds 100
-    $null = & $WezTermExe cli send-text --pane-id $bottomPaneId --no-paste "`r`n" 2>&1
-    $paneMap['validator-1'] = $bottomPaneId
-    Write-Host "      Pane ID: $bottomPaneId - SUCCESS" -ForegroundColor Green
 
     Save-SessionMetadata -TaskDescription $Task -PaneMap $paneMap
 
@@ -790,12 +781,13 @@ function Invoke-DevTeam {
     Write-Host ""
     Write-Host "LAYOUT:" -ForegroundColor Yellow
     Write-Host "  +------------------+------------------+" -ForegroundColor Yellow
-    Write-Host "  |    Architect     |      Expert      |" -ForegroundColor Yellow
-    Write-Host "  |   (this pane)    +------------------+" -ForegroundColor Yellow
+    Write-Host "  |                  |      Expert      |" -ForegroundColor Yellow
+    Write-Host "  |                  +------------------+" -ForegroundColor Yellow
     Write-Host "  |                  |     Builder      |" -ForegroundColor Yellow
-    Write-Host "  +------------------+------------------+" -ForegroundColor Yellow
-    Write-Host "  |    Validator     |                 |" -ForegroundColor Yellow
-    Write-Host "  +------------------+     Research     |" -ForegroundColor Yellow
+    Write-Host "  |    Architect     +------------------+" -ForegroundColor Yellow
+    Write-Host "  |   (this pane)    |     Validator     |" -ForegroundColor Yellow
+    Write-Host "  |                  +------------------+" -ForegroundColor Yellow
+    Write-Host "  |                  |     Research     |" -ForegroundColor Yellow
     Write-Host "  +------------------+------------------+" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "WORKFLOW:" -ForegroundColor Yellow
