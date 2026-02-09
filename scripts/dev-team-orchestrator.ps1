@@ -256,31 +256,12 @@ function Save-SessionMetadata {
         agents     = @{}
         pane_layout = @{
             left = @{
-                top = @{
-                    agent = "architect"
-                    pane_id = "$($PaneMap['architect'])"
-                }
-                bottom = @{
-                    agent = "validator-1"
-                    pane_id = "$($PaneMap['validator-1'])"
-                }
+                agent = "architect"
+                pane_id = "$($PaneMap['architect'])"
             }
-            columns = @{
-                expert = @{
-                    position = "top-right"
-                    agents = @("expert-1")
-                    split_direction = "horizontal"
-                }
-                builder = @{
-                    position = "middle-right"
-                    agents = @("builder-1")
-                    split_direction = "horizontal"
-                }
-                research = @{
-                    position = "bottom-right"
-                    agents = @("research-1")
-                    split_direction = "horizontal"
-                }
+            right = @{
+                agents = @("expert-1", "builder-1", "validator-1", "research-1")
+                split_direction = "horizontal"
             }
         }
     }
@@ -689,7 +670,7 @@ function Invoke-DevTeam {
 
     $paneMap = @{}
 
-    Write-Host "[1/5] Current terminal -> Architect (Team Lead)..." -ForegroundColor Cyan
+    Write-Host "[1/4] Current terminal -> Architect (Team Lead)..." -ForegroundColor Cyan
     $panes = & $WezTermExe cli list --format json | ConvertFrom-Json
     $currentPaneId = ($panes | Where-Object { $_.is_active -eq $true } | Select-Object -First 1).pane_id
     $knownPanes = @("$currentPaneId")
@@ -698,71 +679,94 @@ function Invoke-DevTeam {
 
     Start-Sleep -Milliseconds 300
 
-    # Split Architect right to create right column
-    Write-Host "[2/5] Creating right column..." -ForegroundColor Cyan
+    # Split Architect right multiple times to create 4 columns on right side
+    # We'll create them by splitting right, then splitting the new panes
+
+    # First split: Architect -> Expert column
+    Write-Host "[2/4] Creating Expert column..." -ForegroundColor Cyan
     $splitArgs = @('cli', 'split-pane', '--right', '--percent', '50', '--pane-id', "$currentPaneId")
     & $WezTermExe $splitArgs 2>&1 | Out-Null
     Start-Sleep -Milliseconds 500
 
     $newPanes = & $WezTermExe cli list --format json | ConvertFrom-Json
-    $rightPane = $newPanes | Where-Object { "$($_.pane_id)" -notin $knownPanes }
-    $rightPaneId = "$($rightPane.pane_id)"
-    $knownPanes += "$rightPaneId"
+    $expertPane = $newPanes | Where-Object { "$($_.pane_id)" -notin $knownPanes }
+    $expertPaneId = "$($expertPane.pane_id)"
+    $knownPanes += "$expertPaneId"
 
-    # Spawn Expert in right pane
-    Write-Host "[3/5] Spawning Expert (top-right)..." -ForegroundColor Cyan
+    # Spawn Expert in Expert column
     $escapedExpertPrompt = $expertPrompt.Replace("'", "''")
     $spawnCmd = "droid specialist '$escapedExpertPrompt'"
-    $null = & $WezTermExe cli send-text --pane-id $rightPaneId $spawnCmd 2>&1
+    $null = & $WezTermExe cli send-text --pane-id $expertPaneId $spawnCmd 2>&1
     Start-Sleep -Milliseconds 100
-    $null = & $WezTermExe cli send-text --pane-id $rightPaneId --no-paste "`r`n" 2>&1
-    $paneMap['expert-1'] = $rightPaneId
-    Write-Host "      Pane ID: $rightPaneId - SUCCESS" -ForegroundColor Green
+    $null = & $WezTermExe cli send-text --pane-id $expertPaneId --no-paste "`r`n" 2>&1
+    $paneMap['expert-1'] = $expertPaneId
+    Write-Host "      Pane ID: $expertPaneId - SUCCESS" -ForegroundColor Green
 
     Start-Sleep -Milliseconds 300
 
-    # Split right pane for Builder
-    Write-Host "[4/5] Spawning Builder (middle-right)..." -ForegroundColor Cyan
-    $escapedBuilderPrompt = $builderPrompt.Replace("'", "''")
-    $splitArgs = @('cli', 'split-pane', '--bottom', '--percent', '50', '--pane-id', $rightPaneId, '--cwd', $ProjectDir, '--', 'powershell.exe', '-NoExit', '-Command', "droid builder '$escapedBuilderPrompt'")
+    # Second split: Expert pane -> Builder column (to the right of Expert)
+    Write-Host "[3/4] Creating Builder column..." -ForegroundColor Cyan
+    $splitArgs = @('cli', 'split-pane', '--right', '--percent', '33', '--pane-id', $expertPaneId)
     & $WezTermExe $splitArgs 2>&1 | Out-Null
     Start-Sleep -Milliseconds 500
 
-    $builderPaneId = Get-NewPaneId -KnownPaneIds $knownPanes
-    if (-not $builderPaneId) { Write-Error "Failed to spawn Builder. Aborting."; exit 1 }
+    $newPanes = & $WezTermExe cli list --format json | ConvertFrom-Json
+    $builderPane = $newPanes | Where-Object { "$($_.pane_id)" -notin $knownPanes }
+    $builderPaneId = "$($builderPane.pane_id)"
     $knownPanes += "$builderPaneId"
+
+    # Spawn Builder in Builder column
+    $escapedBuilderPrompt = $builderPrompt.Replace("'", "''")
+    $spawnCmd = "droid builder '$escapedBuilderPrompt'"
+    $null = & $WezTermExe cli send-text --pane-id $builderPaneId $spawnCmd 2>&1
+    Start-Sleep -Milliseconds 100
+    $null = & $WezTermExe cli send-text --pane-id $builderPaneId --no-paste "`r`n" 2>&1
     $paneMap['builder-1'] = $builderPaneId
     Write-Host "      Pane ID: $builderPaneId - SUCCESS" -ForegroundColor Green
 
     Start-Sleep -Milliseconds 300
 
-    # Split Builder for Validator
-    Write-Host "[5/5] Spawning Validator (bottom-right-1)..." -ForegroundColor Cyan
-    $escapedValidatorPrompt = $validatorPrompt.Replace("'", "''")
-    $splitArgs = @('cli', 'split-pane', '--bottom', '--percent', '50', '--pane-id', $builderPaneId, '--cwd', $ProjectDir, '--', 'powershell.exe', '-NoExit', '-Command', "droid validator '$escapedValidatorPrompt'")
+    # Third split: Builder pane -> Research column (to the right of Builder)
+    Write-Host "[4/4] Creating Research column..." -ForegroundColor Cyan
+    $splitArgs = @('cli', 'split-pane', '--right', '--percent', '50', '--pane-id', $builderPaneId)
     & $WezTermExe $splitArgs 2>&1 | Out-Null
     Start-Sleep -Milliseconds 500
 
-    $validatorPaneId = Get-NewPaneId -KnownPaneIds $knownPanes
-    if (-not $validatorPaneId) { Write-Error "Failed to spawn Validator. Aborting."; exit 1 }
-    $knownPanes += "$validatorPaneId"
-    $paneMap['validator-1'] = $validatorPaneId
-    Write-Host "      Pane ID: $validatorPaneId - SUCCESS" -ForegroundColor Green
+    $newPanes = & $WezTermExe cli list --format json | ConvertFrom-Json
+    $researchPane = $newPanes | Where-Object { "$($_.pane_id)" -notin $knownPanes }
+    $researchPaneId = "$($researchPane.pane_id)"
+    $knownPanes += "$researchPaneId"
+
+    # Spawn Research in Research column
+    $escapedResearchPrompt = $researchPrompt.Replace("'", "''")
+    $spawnCmd = "droid specialist '$escapedResearchPrompt'"
+    $null = & $WezTermExe cli send-text --pane-id $researchPaneId $spawnCmd 2>&1
+    Start-Sleep -Milliseconds 100
+    $null = & $WezTermExe cli send-text --pane-id $researchPaneId --no-paste "`r`n" 2>&1
+    $paneMap['research-1'] = $researchPaneId
+    Write-Host "      Pane ID: $researchPaneId - SUCCESS" -ForegroundColor Green
 
     Start-Sleep -Milliseconds 300
 
-    # Split Validator for Research
-    Write-Host "[6/6] Spawning Research (bottom-right-2)..." -ForegroundColor Cyan
-    $escapedResearchPrompt = $researchPrompt.Replace("'", "''")
-    $splitArgs = @('cli', 'split-pane', '--bottom', '--percent', '50', '--pane-id', $validatorPaneId, '--cwd', $ProjectDir, '--', 'powershell.exe', '-NoExit', '-Command', "droid specialist '$escapedResearchPrompt'")
+    # Fourth split: Research pane -> Validator column (to the right of Research)
+    Write-Host "[5/5] Creating Validator column..." -ForegroundColor Cyan
+    $splitArgs = @('cli', 'split-pane', '--right', '--percent', '50', '--pane-id', $researchPaneId)
     & $WezTermExe $splitArgs 2>&1 | Out-Null
     Start-Sleep -Milliseconds 500
 
-    $researchPaneId = Get-NewPaneId -KnownPaneIds $knownPanes
-    if (-not $researchPaneId) { Write-Error "Failed to spawn Research. Aborting."; exit 1 }
-    $knownPanes += "$researchPaneId"
-    $paneMap['research-1'] = $researchPaneId
-    Write-Host "      Pane ID: $researchPaneId - SUCCESS" -ForegroundColor Green
+    $newPanes = & $WezTermExe cli list --format json | ConvertFrom-Json
+    $validatorPane = $newPanes | Where-Object { "$($_.pane_id)" -notin $knownPanes }
+    $validatorPaneId = "$($validatorPane.pane_id)"
+    $knownPanes += "$validatorPaneId"
+
+    # Spawn Validator in Validator column
+    $escapedValidatorPrompt = $validatorPrompt.Replace("'", "''")
+    $spawnCmd = "droid validator '$escapedValidatorPrompt'"
+    $null = & $WezTermExe cli send-text --pane-id $validatorPaneId $spawnCmd 2>&1
+    Start-Sleep -Milliseconds 100
+    $null = & $WezTermExe cli send-text --pane-id $validatorPaneId --no-paste "`r`n" 2>&1
+    $paneMap['validator-1'] = $validatorPaneId
+    Write-Host "      Pane ID: $validatorPaneId - SUCCESS" -ForegroundColor Green
 
     Save-SessionMetadata -TaskDescription $Task -PaneMap $paneMap
 
