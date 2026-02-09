@@ -80,14 +80,35 @@ First, read `.devteam/session.json` to get the pane IDs:
 ```json
 { "agents": { "architect": "0", "builder": "3", "validator": "4", "specialist": "5" } }
 ```
-Then use `wezterm cli send-text` to nudge an agent:
-```bash
-wezterm cli send-text --pane-id PANE_ID --no-paste "Check your inbox for new tasks."
+
+**CORRECT two-step approach:**
+```powershell
+# Step 1: Send the message text
+wezterm cli send-text --pane-id PANE_ID "Check your inbox for new tasks."
+
+# Step 2: Send the Enter key separately
+wezterm cli send-text --pane-id PANE_ID --no-paste "`r`n"
 ```
+
+**Why two steps?**
+- The first command sends the text to the pane
+- The second command with `--no-paste` and `` `r`n `` sends an actual Enter keypress
+- This combination works reliably on Windows
+
+**WRONG approaches (will not execute):**
+```powershell
+# Wrong - just pastes text, no Enter
+wezterm cli send-text --pane-id PANE_ID "Check your inbox for new tasks."
+
+# Wrong - `r alone doesn't work on Windows
+wezterm cli send-text --pane-id PANE_ID --no-paste "Check your inbox for new tasks.`r"
+```
+
 **Workflow:**
 1. Write the task to the agent's inbox file
-2. Send-text to their pane so they see the notification immediately
-3. The agent will read their inbox and start working
+2. Send the text to their pane (step 1)
+3. Send the Enter key (step 2)
+4. The agent will see the notification and read their inbox
 
 ### Important
 - Always write to scratchpad when making architecture decisions

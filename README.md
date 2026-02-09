@@ -31,6 +31,18 @@ Spawns 4 coordinated AI agents in a WezTerm split layout, each with a specialize
 3. Agents read their inboxes, write to the scratchpad, and notify each other via `wezterm cli send-text`
 4. Session files persist in your project directory as a form of session memory
 
+**IMPORTANT:** When using `wezterm cli send-text` to notify agents, you must use a **two-step approach** to ensure the message executes:
+
+```powershell
+# Step 1: Send the message text
+wezterm cli send-text --pane-id 3 "Check your inbox for new tasks."
+
+# Step 2: Send the Enter key (required!)
+wezterm cli send-text --pane-id 3 --no-paste "`r`n"
+```
+
+**Why two steps?** The first command sends the text, the second with `--no-paste` and `` `r`n `` sends an actual Enter keypress. This is required for reliable execution on Windows.
+
 ## Platform
 
 **Windows only.** This project uses PowerShell and WezTerm CLI on Windows. Linux/macOS support is not currently planned, but PRs are welcome.

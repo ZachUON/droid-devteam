@@ -265,7 +265,12 @@ function Send-ToPane {
         [string]$Text
     )
     try {
-        & $WezTermExe cli send-text --pane-id $PaneId --no-paste "$Text`r"
+        # Step 1: Send the message text
+        & $WezTermExe cli send-text --pane-id $PaneId $Text 2>&1 | Out-Null
+        Start-Sleep -Milliseconds 100
+
+        # Step 2: Send Enter key using --no-paste with \r\n
+        & $WezTermExe cli send-text --pane-id $PaneId --no-paste "`r`n" 2>&1 | Out-Null
     } catch {
         Write-Warning "Failed to send text to pane $PaneId"
     }
@@ -290,7 +295,7 @@ function Invoke-DevTeam {
 
     $autoStartPrefix = "IMPORTANT: You are part of a 4-agent dev team working in $ProjectDir. Session files are in $sessionDirForPrompt/. Before doing anything else, read the team scratchpad at $sessionDirForPrompt/scratchpad.md and your inbox at $sessionDirForPrompt/inbox-{ROLE}.md. The session metadata with all pane IDs is at $sessionDirForPrompt/session.json."
 
-    $architectAutoStart = "$autoStartPrefix You are the ARCHITECT (Team Lead). You can send messages to other agents by writing to their inbox files (inbox-builder.md, inbox-validator.md, inbox-specialist.md). You can also trigger agents to check their inbox by running: wezterm cli send-text --pane-id PANE_ID --no-paste `"Check your inbox at $sessionDirForPrompt/inbox-AGENT.md for new tasks.`r`" -- get pane IDs from session.json."
+    $architectAutoStart = "$autoStartPrefix You are the ARCHITECT (Team Lead). You can send messages to other agents by writing to their inbox files (inbox-builder.md, inbox-validator.md, inbox-specialist.md). You can also trigger agents to check their inbox by running: wezterm cli send-text --pane-id PANE_ID --no-paste `"Check your inbox at $sessionDirForPrompt/inbox-AGENT.md for new tasks.`r`" -- CRITICAL: Always include the `` `r `` at the end to send Enter key! Get pane IDs from session.json."
 
     $architectPrompt = if ($Task -ne "") {
         "$architectAutoStart Your team task is: $Task. Read the scratchpad, then break down this task, write subtasks to each agent's inbox, and coordinate the team."
