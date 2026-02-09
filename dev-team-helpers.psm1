@@ -107,7 +107,8 @@ function Initialize-SessionFiles {
     # Create inboxes for initial agents
     $agents = @('architect', 'validator', 'expert-1', 'builder-1', 'research-1')
     foreach ($agent in $agents) {
-        $displayName = (Get-Culture).TextInfo.ToTitleCase($agent -replace '-\d+$', '')
+        $baseName = $agent -replace '-\d+$', ''
+        $displayName = (Get-Culture).TextInfo.ToTitleCase($baseName)
         $inbox = @"
 # Inbox: $displayName ($agent)
 ## Pending Tasks
