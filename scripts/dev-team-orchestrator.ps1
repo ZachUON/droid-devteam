@@ -698,21 +698,10 @@ function Invoke-DevTeam {
 
     Start-Sleep -Milliseconds 300
 
-    Write-Host "[2/5] Spawning Validator (bottom-left)..." -ForegroundColor Cyan
-    $escapedValidatorPrompt = $validatorPrompt.Replace("'", "''")
-    $splitArgs = @('cli', 'split-pane', '--bottom', '--percent', '50', '--pane-id', "$currentPaneId", '--cwd', $ProjectDir, '--', 'powershell.exe', '-NoExit', '-Command', "droid validator '$escapedValidatorPrompt'")
-    & $WezTermExe $splitArgs 2>&1 | Out-Null
-    Start-Sleep -Milliseconds 500
+    # IMPORTANT: Spawn right-side columns FIRST, then split Architect for Validator
+    # This ensures Validator only takes left-bottom, not full width
 
-    $validatorPaneId = Get-NewPaneId -KnownPaneIds $knownPanes
-    if (-not $validatorPaneId) { Write-Error "Failed to spawn Validator. Aborting."; exit 1 }
-    $knownPanes += "$validatorPaneId"
-    $paneMap['validator-1'] = $validatorPaneId
-    Write-Host "      Pane ID: $validatorPaneId - SUCCESS" -ForegroundColor Green
-
-    Start-Sleep -Milliseconds 300
-
-    Write-Host "[3/5] Spawning Expert (top-right)..." -ForegroundColor Cyan
+    Write-Host "[2/5] Spawning Expert (top-right)..." -ForegroundColor Cyan
     $escapedExpertPrompt = $expertPrompt.Replace("'", "''")
     $splitArgs = @('cli', 'split-pane', '--right', '--percent', '50', '--pane-id', "$currentPaneId", '--cwd', $ProjectDir, '--', 'powershell.exe', '-NoExit', '-Command', "droid specialist '$escapedExpertPrompt'")
     & $WezTermExe $splitArgs 2>&1 | Out-Null
@@ -726,7 +715,7 @@ function Invoke-DevTeam {
 
     Start-Sleep -Milliseconds 300
 
-    Write-Host "[4/5] Spawning Builder (middle-right)..." -ForegroundColor Cyan
+    Write-Host "[3/5] Spawning Builder (middle-right)..." -ForegroundColor Cyan
     $escapedBuilderPrompt = $builderPrompt.Replace("'", "''")
     $splitArgs = @('cli', 'split-pane', '--bottom', '--percent', '50', '--pane-id', "$expertPaneId", '--cwd', $ProjectDir, '--', 'powershell.exe', '-NoExit', '-Command', "droid builder '$escapedBuilderPrompt'")
     & $WezTermExe $splitArgs 2>&1 | Out-Null
@@ -740,7 +729,7 @@ function Invoke-DevTeam {
 
     Start-Sleep -Milliseconds 300
 
-    Write-Host "[5/5] Spawning Research (bottom-right)..." -ForegroundColor Cyan
+    Write-Host "[4/5] Spawning Research (bottom-right)..." -ForegroundColor Cyan
     $escapedResearchPrompt = $researchPrompt.Replace("'", "''")
     $splitArgs = @('cli', 'split-pane', '--bottom', '--percent', '50', '--pane-id', "$builderPaneId", '--cwd', $ProjectDir, '--', 'powershell.exe', '-NoExit', '-Command', "droid specialist '$escapedResearchPrompt'")
     & $WezTermExe $splitArgs 2>&1 | Out-Null
@@ -751,6 +740,21 @@ function Invoke-DevTeam {
     $knownPanes += "$researchPaneId"
     $paneMap['research-1'] = $researchPaneId
     Write-Host "      Pane ID: $researchPaneId - SUCCESS" -ForegroundColor Green
+
+    Start-Sleep -Milliseconds 300
+
+    # NOW split Architect pane (left side only) for Validator
+    Write-Host "[5/5] Spawning Validator (bottom-left)..." -ForegroundColor Cyan
+    $escapedValidatorPrompt = $validatorPrompt.Replace("'", "''")
+    $splitArgs = @('cli', 'split-pane', '--bottom', '--percent', '50', '--pane-id', "$currentPaneId", '--cwd', $ProjectDir, '--', 'powershell.exe', '-NoExit', '-Command', "droid validator '$escapedValidatorPrompt'")
+    & $WezTermExe $splitArgs 2>&1 | Out-Null
+    Start-Sleep -Milliseconds 500
+
+    $validatorPaneId = Get-NewPaneId -KnownPaneIds $knownPanes
+    if (-not $validatorPaneId) { Write-Error "Failed to spawn Validator. Aborting."; exit 1 }
+    $knownPanes += "$validatorPaneId"
+    $paneMap['validator-1'] = $validatorPaneId
+    Write-Host "      Pane ID: $validatorPaneId - SUCCESS" -ForegroundColor Green
 
     Save-SessionMetadata -TaskDescription $Task -PaneMap $paneMap
 
