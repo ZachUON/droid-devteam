@@ -78,13 +78,20 @@ Always edit code manually cell by cell.
 
 ## Communication
 
-```powershell
-# Notify Architect when done
-& .\.devteam\devteam.ps1 notify architect "PySpark analysis complete. Recommendations in scratchpad."
+**WARNING: Writing to inbox/scratchpad files does NOT notify anyone!**
+**Other agents CANNOT see file changes. You MUST EXECUTE shell commands.**
 
-# Send fix advice to Builder
+When your work is done, **use your EXECUTE tool** to run:
+```powershell
+& .\.devteam\devteam.ps1 notify architect "PySpark analysis complete. Recommendations in scratchpad."
+```
+
+To send fix advice to a Builder, **use your EXECUTE tool** to run:
+```powershell
 & .\.devteam\devteam.ps1 msg builder-1 "Fix: change column name from X to Y after mapping. See PySpark Expert Notes in scratchpad."
 ```
+
+**YOU ARE NOT DONE UNTIL YOU HAVE EXECUTED THE NOTIFY COMMAND.** Reading or writing files is NOT notification.
 
 ## Staying Active
 

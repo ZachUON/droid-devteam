@@ -124,13 +124,20 @@ When the Fabric Expert shares error logs:
 
 ## Communication
 
-```powershell
-# Notify Architect
-& .\.devteam\devteam.ps1 notify architect "Build complete. Ready for Fabric deployment."
+**WARNING: Writing to inbox/scratchpad files does NOT notify anyone!**
+**Other agents CANNOT see file changes. You MUST EXECUTE shell commands.**
 
-# Ask expert for help
+When your work is done, **use your EXECUTE tool** to run:
+```powershell
+& .\.devteam\devteam.ps1 notify architect "Build complete. Ready for Fabric deployment."
+```
+
+To ask an expert for help, **use your EXECUTE tool** to run:
+```powershell
 & .\.devteam\devteam.ps1 msg pyspark-expert-1 "Need advice on join optimization. See Builder notes in scratchpad."
 ```
+
+**YOU ARE NOT DONE UNTIL YOU HAVE EXECUTED THE NOTIFY COMMAND.** Reading or writing files is NOT notification.
 
 ## Staying Active
 

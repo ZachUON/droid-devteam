@@ -42,21 +42,24 @@ Append to the "Domain Insights" section in `.devteam/scratchpad.md`:
 
 ### Step 5: NOTIFY THE ARCHITECT (CRITICAL!)
 
-You are NOT done until you tell the Architect. Use the proxy script:
+**WARNING: Writing to inbox-architect.md does NOT notify the Architect!**
+**The Architect CANNOT see file changes. You MUST run a shell command.**
+
+Use your EXECUTE tool to run this shell command:
 
 ```powershell
-# Preferred: one command notifies the Architect's pane
 & .\.devteam\devteam.ps1 notify architect "Expert work complete for [domain/task]. Details in scratchpad. Ready for next steps."
 ```
 
-**Fallback** (if proxy script fails): Read session.json for pane IDs and use piped send-text:
+This sends a real-time message to the Architect's WezTerm pane. Without this command, the Architect will never know you finished.
+
+**If the proxy script fails**, use your EXECUTE tool to run:
 ```powershell
-$session = Get-Content .devteam/session.json | ConvertFrom-Json
-$paneId = $session.agents.architect
-"Expert work complete. Details in scratchpad." | wezterm cli send-text --pane-id $paneId --no-paste
-Start-Sleep -Milliseconds 200
-"`r`n" | wezterm cli send-text --pane-id $paneId --no-paste
+$session = Get-Content .devteam/session.json | ConvertFrom-Json; $paneId = $session.agents.architect; "Expert work complete. Details in scratchpad." | wezterm cli send-text --pane-id $paneId --no-paste; Start-Sleep -Milliseconds 200; "`r`n" | wezterm cli send-text --pane-id $paneId --no-paste
 ```
+
+**YOU ARE NOT DONE UNTIL YOU HAVE EXECUTED ONE OF THESE COMMANDS.**
+Reading or writing inbox files is NOT notification. You must EXECUTE a shell command.
 
 ## Communicating with Builders
 

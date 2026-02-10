@@ -68,7 +68,9 @@ if (Test-Path $HelperModule) {
 
 # ── Parse arguments ──
 
-$Command = if ($Arguments.Count -gt 0) { $Arguments[0] } else { "" }
+# Normalize: strip leading dashes from the command so --fabric, -fabric, fabric all work
+$RawCommand = if ($Arguments.Count -gt 0) { $Arguments[0] } else { "" }
+$Command = $RawCommand -replace '^-+', ''
 $Arg1 = if ($Arguments.Count -gt 1) { $Arguments[1] } else { "" }
 $Arg2 = if ($Arguments.Count -gt 2) { $Arguments[2] } else { "" }
 $RestArgs = if ($Arguments.Count -gt 2) { ($Arguments[2..($Arguments.Count - 1)] -join ' ') } else { "" }
@@ -123,14 +125,14 @@ switch ($Command) {
         Invoke-SendMessage -AgentName "architect" -Message $taskMsg -SessionDir $SessionDir -SessionFile $SessionFile -CallerName "user"
         exit 0
     }
-    '--fabric' {
+    'fabric' {
         # Fabric team mode: devteam --fabric "ticket 139" or devteam --fabric "BI-139"
         $fabricTask = if ($Arguments.Count -gt 1) { ($Arguments[1..($Arguments.Count - 1)] -join ' ') } else { "" }
         $fabricTask = $fabricTask -replace '^\s*-Task\s+', ''
         Invoke-StartFabricTeam -Task $fabricTask -ProjectDir $ProjectDir -SessionDir $SessionDir -SessionFile $SessionFile
     }
     default {
-        # $Command is the task string (or empty)
+        # $Command/$RawCommand is the task string (or empty) -- use original arguments
         $Task = ($Arguments -join ' ')
         # Strip leading "-Task" if the old profile function passed it as a parameter name
         $Task = $Task -replace '^\s*-Task\s+', ''

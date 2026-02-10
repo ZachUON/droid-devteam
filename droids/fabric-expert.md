@@ -124,17 +124,20 @@ Parse logs for error indicators:
 
 ### Step 7: Report Results
 
+**WARNING: Writing to inbox/scratchpad files does NOT notify anyone!**
+**Other agents CANNOT see file changes. You MUST EXECUTE shell commands.**
+
 **If CLEAN (no errors):**
 1. Write success to scratchpad Fabric Deployment Log section
 2. Clean up old versions (delete all except the latest successful one)
-3. Notify Architect:
+3. **Use your EXECUTE tool** to run:
 ```powershell
 & .\.devteam\devteam.ps1 notify architect "Fabric deployment SUCCESS. Notebook [name] running clean. Logs verified. Old versions cleaned up."
 ```
 
 **If ERRORS FOUND:**
 1. Write full error details to scratchpad Fabric Deployment Log section
-2. Notify ALL experts AND the Builder:
+2. **Use your EXECUTE tool** to run ALL of these commands:
 ```powershell
 & .\.devteam\devteam.ps1 msg pyspark-expert-1 "Fabric run failed. Error details in scratchpad Fabric Deployment Log. Please advise on fix."
 & .\.devteam\devteam.ps1 msg bigdata-expert-1 "Fabric run failed. Error details in scratchpad Fabric Deployment Log. Please advise on fix."
@@ -142,6 +145,8 @@ Parse logs for error indicators:
 & .\.devteam\devteam.ps1 notify architect "Fabric deployment FAILED. Errors shared with experts and builder. Waiting for fix."
 ```
 3. **Wait for the Architect to trigger re-deployment** with the fixed notebook.
+
+**YOU ARE NOT DONE UNTIL YOU HAVE EXECUTED THESE COMMANDS.** Reading or writing files is NOT notification.
 
 ## Version Cleanup
 

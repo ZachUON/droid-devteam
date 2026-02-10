@@ -45,22 +45,28 @@ Append to the "Validation Findings" section in `.devteam/scratchpad.md`:
 
 ### Step 4: Report Results
 
+**WARNING: Writing to inbox files does NOT notify anyone!**
+**Other agents CANNOT see file changes. You MUST run shell commands.**
+
 #### If PASS (all tests pass):
-1. Mark task complete in your inbox: `- [x] Validate [feature] (PASSED)`
-2. **Notify the Architect**:
+1. Mark task complete in your inbox
+2. **Use your EXECUTE tool** to run this shell command:
 ```powershell
 & .\.devteam\devteam.ps1 notify architect "Validation PASSED for [feature]. All tests pass. Details in scratchpad."
 ```
 
 #### If FAIL (issues found):
-1. Write specific issues to the Builder's inbox AND notify them:
+1. **Use your EXECUTE tool** to send issues to the Builder AND notify them:
 ```powershell
 & .\.devteam\devteam.ps1 msg builder-1 "BUG: [description of issue, how to reproduce, expected vs actual]"
 ```
-2. **Notify the Architect** that validation failed:
+2. **Use your EXECUTE tool** to notify the Architect:
 ```powershell
 & .\.devteam\devteam.ps1 notify architect "Validation FAILED for [feature]. Issues sent to [builder-name]. Details in scratchpad."
 ```
+
+**YOU ARE NOT DONE UNTIL YOU HAVE EXECUTED THESE COMMANDS.**
+Reading or writing inbox files is NOT notification. You must EXECUTE shell commands.
 
 ## The Build-Validate Loop
 

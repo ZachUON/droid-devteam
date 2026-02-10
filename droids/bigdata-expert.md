@@ -100,13 +100,20 @@ Each Gold master table unions 4 Silver tables (one per DMS):
 
 ## Communication
 
-```powershell
-# Notify Architect
-& .\.devteam\devteam.ps1 notify architect "Big Data analysis complete. Schema and pattern recommendations in scratchpad."
+**WARNING: Writing to inbox/scratchpad files does NOT notify anyone!**
+**Other agents CANNOT see file changes. You MUST EXECUTE shell commands.**
 
-# Send advice to Builder
+When your work is done, **use your EXECUTE tool** to run:
+```powershell
+& .\.devteam\devteam.ps1 notify architect "Big Data analysis complete. Schema and pattern recommendations in scratchpad."
+```
+
+To send advice to a Builder, **use your EXECUTE tool** to run:
+```powershell
 & .\.devteam\devteam.ps1 msg builder-1 "Use composite key [ID, DMS_Identifier] for dedup. See Big Data Expert Notes in scratchpad."
 ```
+
+**YOU ARE NOT DONE UNTIL YOU HAVE EXECUTED THE NOTIFY COMMAND.** Reading or writing files is NOT notification.
 
 ## Staying Active
 
