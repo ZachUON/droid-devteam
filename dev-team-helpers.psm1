@@ -583,8 +583,18 @@ function Invoke-StartTeam {
         exit 1
     }
 
-    # Stop existing session if any
+    # Guard: if a session already exists, only the original Architect pane can restart
     if (Test-Path $SessionFile) {
+        try {
+            $existingSession = Get-Content $SessionFile -Raw | ConvertFrom-Json
+            $architectPane = $existingSession.agents.architect
+            if ($architectPane -and $architectPane -ne "$basePaneId") {
+                Write-TeamLog "Session already active! Architect is in pane $architectPane, you are in pane $basePaneId." -Level Error
+                Write-Host "  If an agent ran 'devteam' by mistake, that's the cause." -ForegroundColor Yellow
+                Write-Host "  To restart: run 'devteam stop' from ANY pane first, then 'devteam' again." -ForegroundColor Yellow
+                exit 1
+            }
+        } catch { }
         Write-TeamLog "Found existing session. Archiving..." -Level Warning
         Invoke-StopSession -SessionDir $SessionDir -SessionFile $SessionFile
         Start-Sleep -Milliseconds 300
@@ -875,8 +885,18 @@ function Invoke-StartFabricTeam {
         exit 1
     }
 
-    # Stop existing session if any
+    # Guard: if a session already exists, only the original Architect pane can restart
     if (Test-Path $SessionFile) {
+        try {
+            $existingSession = Get-Content $SessionFile -Raw | ConvertFrom-Json
+            $architectPane = $existingSession.agents.architect
+            if ($architectPane -and $architectPane -ne "$basePaneId") {
+                Write-TeamLog "Session already active! Architect is in pane $architectPane, you are in pane $basePaneId." -Level Error
+                Write-Host "  If an agent ran 'devteam' by mistake, that's the cause." -ForegroundColor Yellow
+                Write-Host "  To restart: run 'devteam stop' from ANY pane first, then 'devteam' again." -ForegroundColor Yellow
+                exit 1
+            }
+        } catch { }
         Write-TeamLog "Found existing session. Archiving..." -Level Warning
         Invoke-StopSession -SessionDir $SessionDir -SessionFile $SessionFile
         Start-Sleep -Milliseconds 300
