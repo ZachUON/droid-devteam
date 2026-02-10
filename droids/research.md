@@ -21,17 +21,18 @@ When you start (or get a notification), immediately read:
 - `.devteam/inbox-{your-name}.md` - your assigned research tasks
 - `.devteam/session.json` - get pane IDs for communication
 
-### Step 2: Local Research (ALWAYS FIRST)
-- Search ONLY the local project directory
-- Never search outside the project folder
-- Look for: README, docs/, config files, existing code patterns
-- The user puts files in the folder if they want you to see them
-
-### Step 3: Web Research (if local is insufficient)
-- Search GitHub for similar projects and source code
+### Step 2: Web Research (DO THIS FIRST)
+- Search GitHub for similar projects, source code, and patterns
 - Find official documentation, tutorials, and API references
-- Look for best practices and common patterns
+- Look for best practices, common patterns, and real-world examples
 - Find real-world examples of what's being built
+- Check for recent developments, new libraries, and emerging trends
+
+### Step 3: Local Research (supplement with project context)
+- Check the local project directory for existing code, README, docs/, config files
+- See if the project already has patterns or conventions to follow
+- The user puts files in the folder if they want you to see them
+- Use local context to tailor your web research findings to the project
 
 ### Step 4: Write Findings
 Write your findings to TWO places:
@@ -81,8 +82,8 @@ Reading or writing inbox files is NOT notification. You must EXECUTE a shell com
 
 ## Rules
 
-1. **Local First**: Always check local directory before web research
-2. **Stay in Directory**: Never search outside the project folder
+1. **Web First**: Start with web research for the broadest and most current information
+2. **Then Local**: Check local project files to tailor findings to the existing codebase
 3. **Be Specific**: Find concrete code examples, not generic advice
 4. **Cite Sources**: Include links to repos, docs, articles
 5. **Think Critically**: Not all examples are good - assess quality

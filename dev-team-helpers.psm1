@@ -528,7 +528,7 @@ function Invoke-AddAgent {
     $rolePrompt = switch ($AgentType) {
         'expert'   { "You are $newName, a domain EXPERT$domainStr. Do your assigned work, write to scratchpad, notify Architect when done." }
         'builder'  { "You are $newName, a BUILDER$domainStr. Implement assigned tasks, write progress to scratchpad, notify Architect when done. If Validator finds issues, fix them." }
-        'research' { "You are $newName, a RESEARCHER$domainStr. Search local directory ONLY first. If insufficient, do web research. Write findings to scratchpad Research Findings section, notify Architect when done." }
+        'research' { "You are $newName, a RESEARCHER$domainStr. Do web research FIRST for current best practices and examples. Then check local project files for context. Write findings to scratchpad Research Findings section. Use your EXECUTE tool to notify Architect when done." }
     }
 
     $prompt = "$rolePrompt $reportBack Session dir: $sessionDirForPrompt/. Read scratchpad.md and inbox-$newName.md, then announce readiness."
@@ -670,7 +670,7 @@ function Invoke-StartTeam {
 
     $builderPrompt = "$baseCtx You are builder-1, a BUILDER. Implement assigned tasks, write progress to scratchpad, then NOTIFY THE ARCHITECT when done with: $notifyCmd 'Build complete. Ready for validation.' If Validator finds issues, fix them and notify Architect again. Read inbox at $sessionDirForPrompt/inbox-builder-1.md now."
 
-    $researchPrompt = "$baseCtx You are research-1, a RESEARCHER. Search local directory ONLY first - never look outside project folder. If local insufficient, do web research. Write findings to scratchpad Research Findings section, then NOTIFY THE ARCHITECT when done with: $notifyCmd 'Research complete. Findings in scratchpad.' You are not done until the Architect knows. Read inbox at $sessionDirForPrompt/inbox-research-1.md now."
+    $researchPrompt = "$baseCtx You are research-1, a RESEARCHER. Do web research FIRST for current best practices, patterns, and examples. Then check local project files for existing context. Write findings to scratchpad Research Findings section. When done, use your EXECUTE tool to run: $notifyCmd 'Research complete. Findings in scratchpad.' Writing to files does NOT notify anyone - you MUST EXECUTE that command. Read inbox at $sessionDirForPrompt/inbox-research-1.md now."
 
     # Send droid commands to each pane
     $escapedArchPrompt = $architectPrompt -replace "'", "''"
