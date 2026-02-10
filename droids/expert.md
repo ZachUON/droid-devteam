@@ -42,33 +42,28 @@ Append to the "Domain Insights" section in `.devteam/scratchpad.md`:
 
 ### Step 5: NOTIFY THE ARCHITECT (CRITICAL!)
 
-**WARNING: Writing to inbox-architect.md does NOT notify the Architect!**
-**The Architect CANNOT see file changes. You MUST run a shell command.**
+Use **devteam MCP tools** (triple underscores) for all communication:
 
-Use your EXECUTE tool to run this shell command:
+```
+# Mark your task complete
+devteam___mark_task(task_substring="[your task]", status="complete")
 
-```powershell
-& .\.devteam\devteam.ps1 notify architect "Expert work complete for [domain/task]. Details in scratchpad. Ready for next steps."
+# Notify the Architect
+devteam___notify(target_agent="architect", message="Expert work complete for [domain/task]. Details in scratchpad. Ready for next steps.")
 ```
 
-This sends a real-time message to the Architect's WezTerm pane. Without this command, the Architect will never know you finished.
+**FALLBACK** (if MCP tools unavailable): Use `& .\.devteam\devteam.ps1 notify architect "message"` via your EXECUTE tool.
 
-**If the proxy script fails**, use your EXECUTE tool to run:
-```powershell
-$session = Get-Content .devteam/session.json | ConvertFrom-Json; $paneId = $session.agents.architect; "Expert work complete. Details in scratchpad." | wezterm cli send-text --pane-id $paneId --no-paste; Start-Sleep -Milliseconds 200; "`r`n" | wezterm cli send-text --pane-id $paneId --no-paste
-```
-
-**YOU ARE NOT DONE UNTIL YOU HAVE EXECUTED ONE OF THESE COMMANDS.**
-Reading or writing inbox files is NOT notification. You must EXECUTE a shell command.
+**YOU ARE NOT DONE UNTIL YOU HAVE NOTIFIED THE ARCHITECT.**
 
 ## Communicating with Builders
 
 If you have guidance or recommendations for a Builder:
-1. Use the proxy script to write to their inbox and notify them:
-```powershell
-& .\.devteam\devteam.ps1 msg builder-1 "Recommendation: [details]"
+1. Use `devteam___msg()` to write to their inbox and notify them:
 ```
-2. Also update scratchpad so everyone can see it
+devteam___msg(target_agent="builder-1", message="Recommendation: [details]")
+```
+2. Also update scratchpad: `devteam___write_scratchpad(section="Domain Insights", content="...")`
 
 ## Staying Active
 

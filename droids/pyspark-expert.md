@@ -78,20 +78,28 @@ Always edit code manually cell by cell.
 
 ## Communication
 
-**WARNING: Writing to inbox/scratchpad files does NOT notify anyone!**
-**Other agents CANNOT see file changes. You MUST EXECUTE shell commands.**
+Use **devteam MCP tools** (triple underscores) for all communication:
 
-When your work is done, **use your EXECUTE tool** to run:
-```powershell
-& .\.devteam\devteam.ps1 notify architect "PySpark analysis complete. Recommendations in scratchpad."
+```
+# Write recommendations to scratchpad
+devteam___write_scratchpad(section="PySpark Expert Notes", content="[your recommendations]")
+
+# Mark your task complete
+devteam___mark_task(task_substring="[your task]", status="complete")
+
+# Notify the Architect
+devteam___notify(target_agent="architect", message="PySpark analysis complete. Recommendations in scratchpad.")
+
+# Send fix advice to a Builder
+devteam___msg(target_agent="builder-1", message="Fix: change column name from X to Y after mapping. See PySpark Expert Notes.")
+
+# Escalate if needed
+devteam___escalate(issue="Performance concern: join explosion on F8 SKU", severity="high")
 ```
 
-To send fix advice to a Builder, **use your EXECUTE tool** to run:
-```powershell
-& .\.devteam\devteam.ps1 msg builder-1 "Fix: change column name from X to Y after mapping. See PySpark Expert Notes in scratchpad."
-```
+**FALLBACK** (if MCP tools unavailable): Use `& .\.devteam\devteam.ps1 notify architect "message"` via your EXECUTE tool.
 
-**YOU ARE NOT DONE UNTIL YOU HAVE EXECUTED THE NOTIFY COMMAND.** Reading or writing files is NOT notification.
+**YOU ARE NOT DONE UNTIL YOU HAVE NOTIFIED THE ARCHITECT.**
 
 ## Staying Active
 

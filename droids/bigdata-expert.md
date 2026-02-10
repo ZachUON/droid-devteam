@@ -100,20 +100,28 @@ Each Gold master table unions 4 Silver tables (one per DMS):
 
 ## Communication
 
-**WARNING: Writing to inbox/scratchpad files does NOT notify anyone!**
-**Other agents CANNOT see file changes. You MUST EXECUTE shell commands.**
+Use **devteam MCP tools** (triple underscores) for all communication:
 
-When your work is done, **use your EXECUTE tool** to run:
-```powershell
-& .\.devteam\devteam.ps1 notify architect "Big Data analysis complete. Schema and pattern recommendations in scratchpad."
+```
+# Write recommendations to scratchpad
+devteam___write_scratchpad(section="Big Data Expert Notes", content="[your analysis and recommendations]")
+
+# Mark your task complete
+devteam___mark_task(task_substring="[your task]", status="complete")
+
+# Notify the Architect
+devteam___notify(target_agent="architect", message="Big Data analysis complete. Schema and pattern recommendations in scratchpad.")
+
+# Send advice to a Builder
+devteam___msg(target_agent="builder-1", message="Use composite key [ID, DMS_Identifier] for dedup. See Big Data Expert Notes.")
+
+# Escalate if needed
+devteam___escalate(issue="Schema mismatch between DMS sources", severity="medium")
 ```
 
-To send advice to a Builder, **use your EXECUTE tool** to run:
-```powershell
-& .\.devteam\devteam.ps1 msg builder-1 "Use composite key [ID, DMS_Identifier] for dedup. See Big Data Expert Notes in scratchpad."
-```
+**FALLBACK** (if MCP tools unavailable): Use `& .\.devteam\devteam.ps1 notify architect "message"` via your EXECUTE tool.
 
-**YOU ARE NOT DONE UNTIL YOU HAVE EXECUTED THE NOTIFY COMMAND.** Reading or writing files is NOT notification.
+**YOU ARE NOT DONE UNTIL YOU HAVE NOTIFIED THE ARCHITECT.**
 
 ## Staying Active
 

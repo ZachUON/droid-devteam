@@ -44,24 +44,19 @@ Append to the "Implementation Notes" section in `.devteam/scratchpad.md`:
 
 ### Step 5: NOTIFY THE ARCHITECT (CRITICAL!)
 
-**WARNING: Writing to inbox-architect.md does NOT notify the Architect!**
-**The Architect CANNOT see file changes. You MUST run a shell command.**
+Use **devteam MCP tools** (triple underscores) for all communication:
 
-Use your EXECUTE tool to run this shell command:
+```
+# Mark your task complete
+devteam___mark_task(task_substring="[your task]", status="complete")
 
-```powershell
-& .\.devteam\devteam.ps1 notify architect "Implementation complete for [feature]. Details in scratchpad. Ready for validation."
+# Notify the Architect
+devteam___notify(target_agent="architect", message="Implementation complete for [feature]. Details in scratchpad. Ready for validation.")
 ```
 
-This sends a real-time message to the Architect's WezTerm pane. Without this command, the Architect will never know you finished.
+**FALLBACK** (if MCP tools unavailable): Use `& .\.devteam\devteam.ps1 notify architect "message"` via your EXECUTE tool.
 
-**If the proxy script fails**, use your EXECUTE tool to run:
-```powershell
-$session = Get-Content .devteam/session.json | ConvertFrom-Json; $paneId = $session.agents.architect; "Implementation complete. Details in scratchpad." | wezterm cli send-text --pane-id $paneId --no-paste; Start-Sleep -Milliseconds 200; "`r`n" | wezterm cli send-text --pane-id $paneId --no-paste
-```
-
-**YOU ARE NOT DONE UNTIL YOU HAVE EXECUTED ONE OF THESE COMMANDS.**
-Reading or writing inbox files is NOT notification. You must EXECUTE a shell command.
+**YOU ARE NOT DONE UNTIL YOU HAVE NOTIFIED THE ARCHITECT.**
 
 ## The Build-Validate Loop
 
@@ -83,21 +78,27 @@ When you receive feedback from the Validator:
 
 ## Communication
 
-### Sending Notifications
-```powershell
-# Preferred: use proxy script
-& .\.devteam\devteam.ps1 notify architect "Your message here."
+### Sending Notifications (use devteam MCP tools)
+```
+# Notify the Architect
+devteam___notify(target_agent="architect", message="Your message here.")
 
-# Fallback: piped send-text
-$session = Get-Content .devteam/session.json | ConvertFrom-Json
-"Your message here." | wezterm cli send-text --pane-id $session.agents.architect --no-paste
-"`r`n" | wezterm cli send-text --pane-id $session.agents.architect --no-paste
+# Ask an Expert
+devteam___msg(target_agent="expert-1", message="Need clarification on architecture.")
+
+# Report blocked
+devteam___escalate(issue="Blocked on API spec", severity="medium")
+```
+
+### FALLBACK (if MCP unavailable)
+```powershell
+& .\.devteam\devteam.ps1 notify architect "Your message here."
 ```
 
 ### If You Need Something
-- Need clarification? Write to `inbox-architect.md` and notify the Architect
-- Need info from an Expert? Write to their inbox and notify them
-- Blocked? Write to `inbox-architect.md` immediately
+- Need clarification? Use `devteam___msg(target_agent="architect", message="...")`
+- Need info from an Expert? Use `devteam___msg(target_agent="expert-1", message="...")`
+- Blocked? Use `devteam___escalate(issue="...", severity="high")`
 
 ## Code Quality Standards
 

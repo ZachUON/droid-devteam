@@ -124,29 +124,31 @@ Parse logs for error indicators:
 
 ### Step 7: Report Results
 
-**WARNING: Writing to inbox/scratchpad files does NOT notify anyone!**
-**Other agents CANNOT see file changes. You MUST EXECUTE shell commands.**
+Use **devteam MCP tools** (triple underscores) for all communication:
 
 **If CLEAN (no errors):**
-1. Write success to scratchpad Fabric Deployment Log section
+1. Write success to scratchpad:
+```
+devteam___write_scratchpad(section="Fabric Deployment Log", content="SUCCESS: [notebook] v[X] - Clean logs. Deployed to [workspace].")
+```
 2. Clean up old versions (delete all except the latest successful one)
-3. **Use your EXECUTE tool** to run:
-```powershell
-& .\.devteam\devteam.ps1 notify architect "Fabric deployment SUCCESS. Notebook [name] running clean. Logs verified. Old versions cleaned up."
+3. Notify Architect:
+```
+devteam___notify(target_agent="architect", message="Fabric deployment SUCCESS. Notebook [name] running clean. Logs verified. Old versions cleaned up.")
 ```
 
 **If ERRORS FOUND:**
-1. Write full error details to scratchpad Fabric Deployment Log section
-2. **Use your EXECUTE tool** to run ALL of these commands:
-```powershell
-& .\.devteam\devteam.ps1 msg pyspark-expert-1 "Fabric run failed. Error details in scratchpad Fabric Deployment Log. Please advise on fix."
-& .\.devteam\devteam.ps1 msg bigdata-expert-1 "Fabric run failed. Error details in scratchpad Fabric Deployment Log. Please advise on fix."
-& .\.devteam\devteam.ps1 msg builder-1 "Fabric run failed. Error details in scratchpad Fabric Deployment Log. Apply fixes from expert advice, re-test locally, notify Architect when ready."
-& .\.devteam\devteam.ps1 notify architect "Fabric deployment FAILED. Errors shared with experts and builder. Waiting for fix."
+1. Share error logs with the entire team (one call handles scratchpad write + notifications):
+```
+devteam___share_error_logs(notebook_name="[name]", error_summary="[brief summary]", driver_logs="[paste logs]", run_version="v1")
+```
+2. Notify Architect:
+```
+devteam___notify(target_agent="architect", message="Fabric deployment FAILED. Errors shared with all experts and builder via share_error_logs.")
 ```
 3. **Wait for the Architect to trigger re-deployment** with the fixed notebook.
 
-**YOU ARE NOT DONE UNTIL YOU HAVE EXECUTED THESE COMMANDS.** Reading or writing files is NOT notification.
+**FALLBACK** (if MCP tools unavailable): Use `& .\.devteam\devteam.ps1 msg agent "message"` via your EXECUTE tool.
 
 ## Version Cleanup
 

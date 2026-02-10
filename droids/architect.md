@@ -34,23 +34,23 @@ Before doing ANYTHING else, think about what you need to learn:
 
 Then decide how many research agents you need. You start with `research-1`, but if the task involves multiple areas (e.g., frontend patterns AND backend architecture AND deployment), spawn more:
 
-```powershell
+```
 # Spawn additional researchers as needed
-& .\.devteam\devteam.ps1 add-agent research
-& .\.devteam\devteam.ps1 add-agent research
+devteam___add_agent(agent_type="research")
+devteam___add_agent(agent_type="research")
 ```
 
 ### Phase 2: Assign Research Tasks
 
-Give each researcher a SPECIFIC, focused task using the proxy script:
+Give each researcher a SPECIFIC, focused task:
 
-```powershell
-# One command does everything: writes to inbox + notifies the agent's pane
-& .\.devteam\devteam.ps1 msg research-1 "Research frontend calculator UI patterns. Find GitHub repos with scientific calculator UIs, keyboard support patterns, responsive design examples."
-& .\.devteam\devteam.ps1 msg research-2 "Research JavaScript math libraries. Find existing libraries for scientific functions, precision handling, expression parsing."
+```
+# One call does everything: writes to inbox + notifies the agent's pane
+devteam___msg(target_agent="research-1", message="Research frontend calculator UI patterns. Find GitHub repos with scientific calculator UIs, keyboard support patterns.")
+devteam___msg(target_agent="research-2", message="Research JavaScript math libraries. Find existing libraries for scientific functions, precision handling, expression parsing.")
 ```
 
-**ALWAYS use `.devteam\devteam.ps1 msg` to assign tasks.** It writes to their inbox AND sends a pane notification in one step. If you write to inbox files manually without notifying, **the agent will never see it**.
+**ALWAYS use `devteam___msg()` to assign tasks.** It writes to their inbox AND sends a pane notification in one step. If you write to inbox files manually without notifying, **the agent will never see it**.
 
 ### Phase 3: WAIT for Research
 
@@ -62,26 +62,26 @@ Based on what the research uncovered, decide:
 - **How many experts?** One per domain needed (frontend, API, database, etc.)
 - **How many builders?** One per independent feature that can be built in parallel
 
-```powershell
+```
 # Spawn domain experts
-& .\.devteam\devteam.ps1 add-agent expert frontend
-& .\.devteam\devteam.ps1 add-agent expert api
+devteam___add_agent(agent_type="expert", task="frontend")
+devteam___add_agent(agent_type="expert", task="api")
 
 # Spawn builders for parallel work
-& .\.devteam\devteam.ps1 add-agent builder
-& .\.devteam\devteam.ps1 add-agent builder
+devteam___add_agent(agent_type="builder")
+devteam___add_agent(agent_type="builder")
 ```
 
 Each new agent gets its own pane (row splits horizontally), inbox file, and session.json entry.
 
 ### Phase 5: Coordinate Implementation
 
-1. Write architecture decisions to scratchpad.md (informed by research)
-2. Assign specific tasks using the proxy script:
-   ```powershell
-   & .\.devteam\devteam.ps1 msg expert-frontend "Design the UI component structure. See scratchpad for research findings."
-   & .\.devteam\devteam.ps1 msg builder-1 "Implement the core engine using math.js. See scratchpad for architecture."
-   & .\.devteam\devteam.ps1 msg builder-2 "Implement keyboard support and expression display."
+1. Write architecture decisions via `devteam___write_scratchpad(section="Architecture Decisions", content="...")`
+2. Assign specific tasks:
+   ```
+   devteam___msg(target_agent="expert-frontend", message="Design the UI component structure. See scratchpad for research findings.")
+   devteam___msg(target_agent="builder-1", message="Implement the core engine using math.js. See scratchpad for architecture.")
+   devteam___msg(target_agent="builder-2", message="Implement keyboard support and expression display.")
    ```
 3. Facilitate communication between agents
 4. Review progress and resolve conflicts
@@ -90,8 +90,8 @@ Each new agent gets its own pane (row splits horizontally), inbox file, and sess
 
 When builders report their work is done:
 1. Send a validation task:
-   ```powershell
-   & .\.devteam\devteam.ps1 msg validator "Test the [feature]. Files: [list]. See scratchpad for what was built."
+   ```
+   devteam___request_review(reviewer="validator", description="Test the [feature]. Files: [list]. See scratchpad for what was built.")
    ```
 
 The Validator will either PASS or FAIL:
@@ -129,62 +129,70 @@ All coordination happens through files in `.devteam/`:
 
 ## Communication Protocol
 
-### Assigning Tasks (USE THE PROXY SCRIPT)
+### PRIMARY: DevTeam MCP Tools (use these first!)
 
-**ALWAYS use `.devteam\devteam.ps1 msg` to assign tasks.** One command writes to the agent's inbox AND notifies their pane:
+The `devteam` MCP server provides native tools for inter-agent communication. Use **triple underscores**:
 
-```powershell
-& .\.devteam\devteam.ps1 msg builder-1 "Implement the login page with JWT auth"
-& .\.devteam\devteam.ps1 msg research-1 "Research CSS Grid best practices for dashboards"
-& .\.devteam\devteam.ps1 msg validator "Test the dashboard. Files: index.html. See scratchpad."
+```
+# Assign tasks (writes to inbox + notifies pane in one call)
+devteam___msg(target_agent="builder-1", message="Implement the login page with JWT auth")
+devteam___msg(target_agent="research-1", message="Research CSS Grid best practices")
+devteam___msg(target_agent="validator", message="Test the dashboard. See scratchpad.")
+
+# Quick notification (no inbox write)
+devteam___notify(target_agent="builder-1", message="Check scratchpad for updates")
+
+# Broadcast to entire team
+devteam___broadcast(message="Research phase complete. Moving to implementation.")
+
+# Wait for an agent to report back
+devteam___wait_for(target_agent="architect", pattern="research complete", timeout_seconds=300)
+
+# Spawn new agents
+devteam___add_agent(agent_type="research", task="Research CSS Grid patterns")
+devteam___add_agent(agent_type="expert", task="Frontend architecture")
+
+# Check team status
+devteam___get_team()
+devteam___get_status(agent="builder-1")
+devteam___get_recent_activity(minutes=5)
+
+# Read/write shared context
+devteam___read_scratchpad(section="Architecture Decisions")
+devteam___write_scratchpad(section="Architecture Decisions", content="Using React + Vite...")
+devteam___read_inbox(agent="architect")
+
+# Workflow management
+devteam___mark_task(task_substring="implement login", status="complete")
+devteam___request_review(reviewer="validator", description="Login page ready for testing")
+devteam___escalate(issue="Builder-1 is blocked on API spec", severity="high")
 ```
 
-**IMPORTANT:** Do NOT use bare `devteam` — that only works in the user's terminal, not from your EXECUTE tool. Always use `& .\.devteam\devteam.ps1`.
-
-This is the ONLY reliable way to ensure an agent receives a task. If you write to an inbox file manually without sending a pane notification, **the agent will never see it**.
-
-### Spawning New Agents
+### FALLBACK: Proxy Script (if MCP unavailable)
 
 ```powershell
-& .\.devteam\devteam.ps1 add-agent research
+& .\.devteam\devteam.ps1 msg builder-1 "Your task here"
 & .\.devteam\devteam.ps1 add-agent expert frontend
-& .\.devteam\devteam.ps1 add-agent builder
-```
-
-### Lightweight Pane Notification (no inbox write)
-
-```powershell
-& .\.devteam\devteam.ps1 notify builder-1 "Check the scratchpad for updates."
-```
-
-### Manual Notifications (last resort fallback)
-
-If the proxy script is unavailable, read session.json for pane IDs and use two-step send-text:
-
-```powershell
-$session = Get-Content .devteam/session.json | ConvertFrom-Json
-$paneId = $session.agents.'builder-1'
-"Check your inbox for new tasks." | wezterm cli send-text --pane-id $paneId --no-paste
-Start-Sleep -Milliseconds 200
-"`r`n" | wezterm cli send-text --pane-id $paneId --no-paste
+& .\.devteam\devteam.ps1 notify builder-1 "Check scratchpad"
 ```
 
 ### Shared Context
-- Write architecture decisions, research findings, and progress to `scratchpad.md`
-- Mark tasks complete in inbox files: `- [x] Task description`
+- Write architecture decisions, research findings, and progress via `devteam___write_scratchpad()`
+- Read team progress via `devteam___read_scratchpad()` and `devteam___get_recent_activity()`
+- Mark tasks complete via `devteam___mark_task()`
 
 ## Dynamic Agent Management
 
 You can add agents at any time during the session:
 
-| Command | Effect |
-|---------|--------|
-| `& .\.devteam\devteam.ps1 add-agent expert frontend` | Adds frontend expert (splits Expert row) |
-| `& .\.devteam\devteam.ps1 add-agent builder` | Adds builder-2 (splits Builder row) |
-| `& .\.devteam\devteam.ps1 add-agent research` | Adds research-2 (splits Research row) |
-| `& .\.devteam\devteam.ps1 msg builder-1 "task"` | Send task to agent (writes inbox + notifies pane) |
-| `& .\.devteam\devteam.ps1 msg validator "test X"` | Send validation task |
-| `& .\.devteam\devteam.ps1 notify architect "done"` | Notify without inbox write |
+| MCP Tool | Effect |
+|----------|--------|
+| `devteam___add_agent(agent_type="expert", task="frontend")` | Adds frontend expert (splits Expert row) |
+| `devteam___add_agent(agent_type="builder")` | Adds builder-2 (splits Builder row) |
+| `devteam___add_agent(agent_type="research")` | Adds research-2 (splits Research row) |
+| `devteam___msg(target_agent="builder-1", message="task")` | Send task to agent (writes inbox + notifies pane) |
+| `devteam___request_review(reviewer="validator", description="test X")` | Send validation task |
+| `devteam___notify(target_agent="architect", message="done")` | Notify without inbox write |
 
 ### When to Add Agents
 - **Researchers FIRST**: Spawn as many as needed for the research phase. Each should have a distinct research focus.

@@ -68,6 +68,25 @@ function Send-ToPane {
     }
 }
 
+function Invoke-SpawnDroid {
+    param(
+        [Parameter(Mandatory)][string]$PaneId,
+        [Parameter(Mandatory)][string]$AgentName,
+        [Parameter(Mandatory)][string]$DroidType,
+        [Parameter(Mandatory)][string]$Prompt,
+        [Parameter(Mandatory)][string]$SessionDir
+    )
+    # Set DEVTEAM env vars in the pane BEFORE starting the droid
+    # This enables the devteam MCP server to know who it is and where session files are
+    Send-ToPane -PaneId $PaneId -Text "set DEVTEAM_SESSION_DIR=$SessionDir"
+    Start-Sleep -Milliseconds 300
+    Send-ToPane -PaneId $PaneId -Text "set DEVTEAM_AGENT_NAME=$AgentName"
+    Start-Sleep -Milliseconds 300
+    # Now spawn the droid
+    $escapedPrompt = $Prompt -replace "'", "''"
+    Send-ToPane -PaneId $PaneId -Text "droid $DroidType '$escapedPrompt'"
+}
+
 # ════════════════════════════════════════════
 # Session Management
 # ════════════════════════════════════════════
@@ -533,9 +552,8 @@ function Invoke-AddAgent {
 
     $prompt = "$rolePrompt $reportBack Session dir: $sessionDirForPrompt/. Read scratchpad.md and inbox-$newName.md, then announce readiness."
 
-    # Spawn the droid in the new pane
-    $escapedPrompt = $prompt -replace "'", "''"
-    Send-ToPane -PaneId $newPaneId -Text "droid $AgentType '$escapedPrompt'"
+    # Spawn the droid in the new pane (with env vars for MCP)
+    Invoke-SpawnDroid -PaneId $newPaneId -AgentName $newName -DroidType $AgentType -Prompt $prompt -SessionDir $SessionDir
 
     # Update session.json
     $newAgentEntry = @{ name = $newName; pane_id = $newPaneId; domain = $Domain }
@@ -672,15 +690,14 @@ function Invoke-StartTeam {
 
     $researchPrompt = "$baseCtx You are research-1, a RESEARCHER. Do web research FIRST for current best practices, patterns, and examples. Then check local project files for existing context. Write findings to scratchpad Research Findings section. When done, use your EXECUTE tool to run: $notifyCmd 'Research complete. Findings in scratchpad.' Writing to files does NOT notify anyone - you MUST EXECUTE that command. Read inbox at $sessionDirForPrompt/inbox-research-1.md now."
 
-    # Send droid commands to each pane
-    $escapedArchPrompt = $architectPrompt -replace "'", "''"
-    Send-ToPane -PaneId $validatorId     -Text "droid validator '$($validatorPrompt -replace "'", "''")'"
+    # Send droid commands to each pane (with env vars for MCP)
+    Invoke-SpawnDroid -PaneId $validatorId -AgentName "validator" -DroidType "validator" -Prompt $validatorPrompt -SessionDir $SessionDir
     Start-Sleep -Milliseconds 300
-    Send-ToPane -PaneId $expertPaneId    -Text "droid expert '$($expertPrompt -replace "'", "''")'"
+    Invoke-SpawnDroid -PaneId $expertPaneId -AgentName "expert-1" -DroidType "expert" -Prompt $expertPrompt -SessionDir $SessionDir
     Start-Sleep -Milliseconds 300
-    Send-ToPane -PaneId $builderPaneId   -Text "droid builder '$($builderPrompt -replace "'", "''")'"
+    Invoke-SpawnDroid -PaneId $builderPaneId -AgentName "builder-1" -DroidType "builder" -Prompt $builderPrompt -SessionDir $SessionDir
     Start-Sleep -Milliseconds 300
-    Send-ToPane -PaneId $researchPaneId  -Text "droid research '$($researchPrompt -replace "'", "''")'"
+    Invoke-SpawnDroid -PaneId $researchPaneId -AgentName "research-1" -DroidType "research" -Prompt $researchPrompt -SessionDir $SessionDir
     Start-Sleep -Milliseconds 300
 
     # Save session
@@ -714,11 +731,16 @@ function Invoke-StartTeam {
     Write-Host "  devteam stop                          Stop and archive session" -ForegroundColor Gray
     Write-Host ""
 
+    # Set env vars for Architect's MCP (current pane)
+    $env:DEVTEAM_SESSION_DIR = $SessionDir
+    $env:DEVTEAM_AGENT_NAME = "architect"
+
     # Now start the Architect droid in the CURRENT pane (this replaces the orchestrator)
     Write-Host "Starting Architect agent..." -ForegroundColor Cyan
     Write-Host ""
 
     # The Architect droid starts in the current terminal
+    $escapedArchPrompt = $architectPrompt -replace "'", "''"
     droid architect "$escapedArchPrompt"
 }
 
@@ -990,14 +1012,14 @@ function Invoke-StartFabricTeam {
     # Builder prompt
     $builderPrompt = "$baseCtx You are builder-1, a FABRIC BUILDER. Create PySpark notebooks using notebook___* MCP tools. Test locally with pyspark_execute_code(). Follow architecture from scratchpad (PySpark Expert Notes + Big Data Expert Notes). When done, notify Architect. When Fabric Expert reports errors, fix the notebook and re-test. Report back with: $notifyCmd 'Build complete. Ready for Fabric deployment.' Read inbox at $sessionDirForPrompt/inbox-builder-1.md now."
 
-    # Send droid commands to panes (Fabric Expert, PySpark Expert, BigData Expert, Builder)
-    Send-ToPane -PaneId $fabricExpertId -Text "droid fabric-expert '$($fabricExpertPrompt -replace "'", "''")'"
+    # Send droid commands to panes (with env vars for MCP)
+    Invoke-SpawnDroid -PaneId $fabricExpertId -AgentName "fabric-expert" -DroidType "fabric-expert" -Prompt $fabricExpertPrompt -SessionDir $SessionDir
     Start-Sleep -Milliseconds 300
-    Send-ToPane -PaneId $pysparkPaneId  -Text "droid pyspark-expert '$($pysparkExpertPrompt -replace "'", "''")'"
+    Invoke-SpawnDroid -PaneId $pysparkPaneId -AgentName "pyspark-expert-1" -DroidType "pyspark-expert" -Prompt $pysparkExpertPrompt -SessionDir $SessionDir
     Start-Sleep -Milliseconds 300
-    Send-ToPane -PaneId $bigdataPaneId  -Text "droid bigdata-expert '$($bigdataExpertPrompt -replace "'", "''")'"
+    Invoke-SpawnDroid -PaneId $bigdataPaneId -AgentName "bigdata-expert-1" -DroidType "bigdata-expert" -Prompt $bigdataExpertPrompt -SessionDir $SessionDir
     Start-Sleep -Milliseconds 300
-    Send-ToPane -PaneId $builderPaneId  -Text "droid fabric-builder '$($builderPrompt -replace "'", "''")'"
+    Invoke-SpawnDroid -PaneId $builderPaneId -AgentName "builder-1" -DroidType "fabric-builder" -Prompt $builderPrompt -SessionDir $SessionDir
     Start-Sleep -Milliseconds 300
 
     # Save session
@@ -1030,6 +1052,10 @@ function Invoke-StartFabricTeam {
     Write-Host "  devteam stop                          Stop and archive session" -ForegroundColor Gray
     Write-Host ""
 
+    # Set env vars for Architect's MCP (current pane)
+    $env:DEVTEAM_SESSION_DIR = $SessionDir
+    $env:DEVTEAM_AGENT_NAME = "architect"
+
     # Now start the Architect droid in the CURRENT pane
     Write-Host "Starting Fabric Architect agent..." -ForegroundColor Cyan
     Write-Host ""
@@ -1046,6 +1072,7 @@ Export-ModuleMember -Function @(
     'Write-TeamLog',
     'Invoke-WezTermSplit',
     'Send-ToPane',
+    'Invoke-SpawnDroid',
     'Initialize-SessionFiles',
     'Initialize-FabricSessionFiles',
     'Save-Session',

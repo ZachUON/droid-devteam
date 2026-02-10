@@ -45,28 +45,29 @@ Append to the "Validation Findings" section in `.devteam/scratchpad.md`:
 
 ### Step 4: Report Results
 
-**WARNING: Writing to inbox files does NOT notify anyone!**
-**Other agents CANNOT see file changes. You MUST run shell commands.**
+Use **devteam MCP tools** (triple underscores) for all communication:
 
 #### If PASS (all tests pass):
-1. Mark task complete in your inbox
-2. **Use your EXECUTE tool** to run this shell command:
-```powershell
-& .\.devteam\devteam.ps1 notify architect "Validation PASSED for [feature]. All tests pass. Details in scratchpad."
+1. Mark task complete:
+```
+devteam___mark_task(task_substring="[feature name]", status="complete", note="All tests pass")
+```
+2. Notify the Architect:
+```
+devteam___notify(target_agent="architect", message="Validation PASSED for [feature]. All tests pass. Details in scratchpad.")
 ```
 
 #### If FAIL (issues found):
-1. **Use your EXECUTE tool** to send issues to the Builder AND notify them:
-```powershell
-& .\.devteam\devteam.ps1 msg builder-1 "BUG: [description of issue, how to reproduce, expected vs actual]"
+1. Send issues to the Builder:
 ```
-2. **Use your EXECUTE tool** to notify the Architect:
-```powershell
-& .\.devteam\devteam.ps1 notify architect "Validation FAILED for [feature]. Issues sent to [builder-name]. Details in scratchpad."
+devteam___msg(target_agent="builder-1", message="BUG: [description, how to reproduce, expected vs actual]")
+```
+2. Notify the Architect:
+```
+devteam___notify(target_agent="architect", message="Validation FAILED for [feature]. Issues sent to [builder-name]. Details in scratchpad.")
 ```
 
-**YOU ARE NOT DONE UNTIL YOU HAVE EXECUTED THESE COMMANDS.**
-Reading or writing inbox files is NOT notification. You must EXECUTE shell commands.
+**FALLBACK** (if MCP tools unavailable): Use `& .\.devteam\devteam.ps1 notify architect "message"` via your EXECUTE tool.
 
 ## The Build-Validate Loop
 

@@ -54,9 +54,9 @@ After reading the ticket, ask the user:
 
 Send the requirements to both experts for analysis:
 
-```powershell
-& .\.devteam\devteam.ps1 msg pyspark-expert-1 "Review these requirements and advise on PySpark approach. See Jira Ticket Details in scratchpad."
-& .\.devteam\devteam.ps1 msg bigdata-expert-1 "Review data architecture implications. Advise on schema, medallion layer, and data patterns. See scratchpad."
+```
+devteam___msg(target_agent="pyspark-expert-1", message="Review these requirements and advise on PySpark approach. See Jira Ticket Details in scratchpad.")
+devteam___msg(target_agent="bigdata-expert-1", message="Review data architecture implications. Advise on schema, medallion layer, and data patterns. See scratchpad.")
 ```
 
 Wait for both experts to respond before proceeding.
@@ -65,16 +65,17 @@ Wait for both experts to respond before proceeding.
 
 Based on expert advice, write architecture decisions to scratchpad, then assign the Builder:
 
-```powershell
-& .\.devteam\devteam.ps1 msg builder-1 "Create the notebook per the architecture in scratchpad. Test locally with PySpark MCP before reporting done."
+```
+devteam___write_scratchpad(section="Architecture Decisions", content="[approach based on expert input]")
+devteam___msg(target_agent="builder-1", message="Create the notebook per the architecture in scratchpad. Test locally with PySpark MCP before reporting done.")
 ```
 
 ### Phase 5: Trigger Fabric Expert
 
 When Builder reports the notebook is ready:
 
-```powershell
-& .\.devteam\devteam.ps1 msg fabric-expert "Deploy notebook [name] to Fabric. Workspace: [name], Lakehouse: [name]. See scratchpad for details."
+```
+devteam___msg(target_agent="fabric-expert", message="Deploy notebook [name] to Fabric. Workspace: [name], Lakehouse: [name]. See scratchpad for details.")
 ```
 
 ### Phase 6: Handle Results
@@ -98,20 +99,49 @@ When Fabric Expert confirms clean logs:
 
 ## Communication Protocol
 
-**ALWAYS use the proxy script** -- bare `devteam` will NOT work from your EXECUTE tool:
+### PRIMARY: DevTeam MCP Tools (use these first!)
+
+The `devteam` MCP server provides native tools for inter-agent communication. Use **triple underscores**:
+
+```
+# Assign tasks (writes to inbox + notifies pane in one call)
+devteam___msg(target_agent="builder-1", message="Create the notebook per architecture in scratchpad")
+devteam___msg(target_agent="fabric-expert", message="Deploy notebook X to Fabric")
+devteam___msg(target_agent="pyspark-expert-1", message="Review PySpark approach for this ticket")
+devteam___msg(target_agent="bigdata-expert-1", message="Advise on schema and table patterns")
+
+# Quick notification (no inbox write)
+devteam___notify(target_agent="fabric-expert", message="Builder has fixed the notebook")
+
+# Broadcast to entire team
+devteam___broadcast(message="Ticket requirements clarified. See scratchpad.")
+
+# Wait for agent response
+devteam___wait_for(target_agent="architect", pattern="expert work complete", timeout_seconds=300)
+
+# Spawn more agents
+devteam___add_agent(agent_type="expert", task="security")
+devteam___add_agent(agent_type="builder")
+
+# Team awareness
+devteam___get_team()
+devteam___get_status(agent="fabric-expert")
+devteam___get_recent_activity(minutes=5)
+
+# Shared context
+devteam___read_scratchpad(section="Jira Ticket Details")
+devteam___write_scratchpad(section="Architecture Decisions", content="Using medallion pattern...")
+devteam___read_inbox(agent="architect")
+
+# Workflow
+devteam___mark_task(task_substring="review requirements", status="complete")
+devteam___request_review(reviewer="fabric-expert", description="Notebook ready for deployment")
+```
+
+### FALLBACK: Proxy Script (if MCP unavailable)
 
 ```powershell
-# Assign tasks (writes to inbox + notifies pane)
 & .\.devteam\devteam.ps1 msg builder-1 "Your task here"
-& .\.devteam\devteam.ps1 msg fabric-expert "Deploy notebook X"
-& .\.devteam\devteam.ps1 msg pyspark-expert-1 "Review this code"
-& .\.devteam\devteam.ps1 msg bigdata-expert-1 "Advise on schema"
-
-# Spawn more agents if needed
-& .\.devteam\devteam.ps1 add-agent expert "security"
-& .\.devteam\devteam.ps1 add-agent builder
-
-# Lightweight notification (no inbox write)
 & .\.devteam\devteam.ps1 notify fabric-expert "Builder has fixed the notebook"
 ```
 
@@ -127,10 +157,10 @@ When Fabric Expert confirms clean logs:
 
 You can spawn additional experts or builders at any time:
 
-```powershell
-& .\.devteam\devteam.ps1 add-agent expert "security"    # Add security expert
-& .\.devteam\devteam.ps1 add-agent expert "performance"  # Add performance expert
-& .\.devteam\devteam.ps1 add-agent builder               # Add another builder
+```
+devteam___add_agent(agent_type="expert", task="security")       # Add security expert
+devteam___add_agent(agent_type="expert", task="performance")    # Add performance expert
+devteam___add_agent(agent_type="builder")                        # Add another builder
 ```
 
 ## Auto-Start Checklist

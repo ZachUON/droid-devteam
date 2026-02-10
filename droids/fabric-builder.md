@@ -124,20 +124,28 @@ When the Fabric Expert shares error logs:
 
 ## Communication
 
-**WARNING: Writing to inbox/scratchpad files does NOT notify anyone!**
-**Other agents CANNOT see file changes. You MUST EXECUTE shell commands.**
+Use **devteam MCP tools** (triple underscores) for all communication:
 
-When your work is done, **use your EXECUTE tool** to run:
-```powershell
-& .\.devteam\devteam.ps1 notify architect "Build complete. Ready for Fabric deployment."
+```
+# Write progress to scratchpad
+devteam___write_scratchpad(section="Builder Implementation Notes", content="### [notebook name]\n- Files: ...\n- Status: ...")
+
+# Mark your task complete
+devteam___mark_task(task_substring="[your task]", status="complete")
+
+# Notify the Architect
+devteam___notify(target_agent="architect", message="Notebook [name] created and tested locally. Ready for Fabric deployment.")
+
+# Ask an expert for help
+devteam___msg(target_agent="pyspark-expert-1", message="Need advice on join optimization. See Builder notes in scratchpad.")
+
+# Escalate if blocked
+devteam___escalate(issue="Schema from Big Data Expert doesn't match lakehouse tables", severity="medium")
 ```
 
-To ask an expert for help, **use your EXECUTE tool** to run:
-```powershell
-& .\.devteam\devteam.ps1 msg pyspark-expert-1 "Need advice on join optimization. See Builder notes in scratchpad."
-```
+**FALLBACK** (if MCP tools unavailable): Use `& .\.devteam\devteam.ps1 notify architect "message"` via your EXECUTE tool.
 
-**YOU ARE NOT DONE UNTIL YOU HAVE EXECUTED THE NOTIFY COMMAND.** Reading or writing files is NOT notification.
+**YOU ARE NOT DONE UNTIL YOU HAVE NOTIFIED THE ARCHITECT.**
 
 ## Staying Active
 
